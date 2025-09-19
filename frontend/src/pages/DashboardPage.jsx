@@ -11,7 +11,12 @@ function DashboardPage() {
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
   const navigate = useNavigate();
-  const [userName, setUserName] = useState(''); 
+  const [userName, setUserName] = useState('');
+ 
+  const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
   
   const getToken = () => localStorage.getItem('token');
   
@@ -40,14 +45,11 @@ function DashboardPage() {
     if (!token) {
       navigate('/login'); 
     } else {
-      const decodedToken = jwtDecode(token);      
-      
-      console.log('Conteúdo do token:', decodedToken);
-      
+      const decodedToken = jwtDecode(token);
       setUserName(decodedToken.name);
       getTransactions();
     }
-  }, []);
+  }, []); 
   
   const addTransaction = async (e) => {
     e.preventDefault();
@@ -96,19 +98,20 @@ function DashboardPage() {
           Olá, <span className="text-primary">{userName}!</span>
         </h2>
 
+        {}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <h4 className="text-lg font-semibold text-gray-600">Receitas</h4>
-            <p className="text-2xl font-bold text-success">R$ {totalIncome.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-success">{currencyFormatter.format(totalIncome)}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <h4 className="text-lg font-semibold text-gray-600">Despesas</h4>
-            <p className="text-2xl font-bold text-danger">R$ {Math.abs(totalExpense).toFixed(2)}</p>
+            <p className="text-2xl font-bold text-danger">{currencyFormatter.format(Math.abs(totalExpense))}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md text-center">
             <h4 className="text-lg font-semibold text-gray-600">Saldo</h4>
             <p className={`text-2xl font-bold ${balance >= 0 ? 'text-primary' : 'text-danger'}`}>
-              R$ {balance.toFixed(2)}
+              {currencyFormatter.format(balance)}
             </p>
           </div>
         </div>
@@ -150,8 +153,9 @@ function DashboardPage() {
                 <div key={t._id} className="bg-white p-4 rounded-lg shadow-md flex justify-between items-center">
                   <span className="font-semibold text-gray-700">{t.description}</span>
                   <div className="flex items-center space-x-4">
-                    <span className={`font-bold ${t.type === 'expense' ? 'text-danger' : 'text-success'}`}>
-                      {t.type === 'expense' ? '-' : '+'} R$ {Math.abs(t.amount).toFixed(2)}
+                    {}
+                    <span className={`font-bold ${t.amount < 0 ? 'text-danger' : 'text-success'}`}>
+                      {currencyFormatter.format(t.amount)}
                     </span>
                     <button onClick={() => deleteTransaction(t._id)} className="text-gray-400 hover:text-danger transition-colors" aria-label="Deletar">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
