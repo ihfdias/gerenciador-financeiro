@@ -3,10 +3,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        'primary': '#2563eb',   
-        'success': '#16a34a',   
-        'danger': '#dc2626',    
-        'background': '#f8fafc' 
+        'primary': '#475569',   
+        'success': '#10b981',   
+        'danger': '#f97316',    
+        'background': '#f9fafb' 
       },
     },
   },
