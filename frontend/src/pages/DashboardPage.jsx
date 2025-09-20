@@ -87,7 +87,7 @@ function DashboardPage() {
 
   
   return (
-    <div className="bg-background min-h-screen font-sans">
+    <div className="min-h-screen font-sans">
        <header className="bg-white shadow-md">
         <nav className="container mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
           <h1 className="text-lg md:text-xl font-bold text-gray-800">Meu Gerenciador</h1>
