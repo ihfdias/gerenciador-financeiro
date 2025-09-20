@@ -26,14 +26,64 @@ function DashboardPage() {
   };
   
   const getTransactions = async () => {
-  
+    try {
+      const token = getToken();
+      const response = await axios.get(`${API_BASE_URL}/api/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTransactions(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar transações:", error);
+      if (error.response && (error.response.status === 401 || error.response.status === 400)) {
+        handleLogout();
+      }
+    }
   };
   
   useEffect(() => {
-   
+    const token = getToken();
+    if (!token) {
+      navigate('/login'); 
+    } else {
+      const decodedToken = jwtDecode(token);
+      setUserName(decodedToken.name);
+      getTransactions();
+    }
   }, []); 
   
- return (
+  const addTransaction = async (e) => {
+    e.preventDefault();
+    try {
+      const token = getToken();
+      const newTransaction = { description, amount: Number(amount), type };
+      await axios.post(`${API_BASE_URL}/api/transactions`, newTransaction, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      getTransactions();     
+      setDescription('');
+      setAmount('');
+    } catch (error) {
+      console.error("Erro ao adicionar transação:", error);
+    }
+  };
+  
+  const deleteTransaction = async (id) => {
+    try {
+      const token = getToken();
+      await axios.delete(`${API_BASE_URL}/api/transactions/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      getTransactions(); 
+    } catch (error) {
+      console.error("Erro ao deletar transação:", error);
+    }
+  };
+
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const balance = totalIncome + totalExpense;
+
+  return (
     <div className="bg-background min-h-screen font-sans">
        <header className="bg-white shadow-md">
         <nav className="container mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
@@ -44,12 +94,10 @@ function DashboardPage() {
         </nav>
       </header>
       <main className="container mx-auto p-4 md:p-8 max-w-3xl">
-        {}
         <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">
           Olá, <span className="text-primary">{userName}!</span>
         </h2>
 
-        {}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
           <div className="bg-white p-4 rounded-lg shadow-md text-center">
             <h4 className="text-base md:text-lg font-semibold text-gray-600">Receitas</h4>
@@ -67,12 +115,9 @@ function DashboardPage() {
           </div>
         </div>
 
-        {}
         <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-          {}
           <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">Adicionar Nova Transação</h3>
           <form onSubmit={addTransaction} className="space-y-4">
-            {}
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700">Descrição</label>
               <input type="text" id="description" placeholder="Ex: Salário, Aluguel" value={description} onChange={(e) => setDescription(e.target.value)}
@@ -99,9 +144,7 @@ function DashboardPage() {
           </form>
         </div>
 
-        {}
         <div>
-           {}
           <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">Histórico</h3>
           <div className="space-y-3">
             {transactions.length > 0 ? (
@@ -127,6 +170,5 @@ function DashboardPage() {
     </div>
   );
 }
-
 
 export default DashboardPage;
