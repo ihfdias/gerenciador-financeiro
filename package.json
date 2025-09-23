@@ -1,0 +1,21 @@
+{
+  "name": "gerenciador-financeiro-monorepo",
+  "version": "1.0.0",
+  "description": "Um gerenciador financeiro full-stack com React e Node.js",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+  "dev:frontend": "npm run dev --workspace=frontend",
+  "start:backend": "npm start --workspace=backend",
+  "dev": "concurrently \"npm run dev:frontend\" \"npm run start:backend\""
+},
+  "keywords": [],
+  "author": "Seu Nome",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
