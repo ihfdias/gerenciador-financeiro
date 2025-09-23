@@ -36,13 +36,17 @@ router.get('/', auth, async (req, res) => {
 });
 
 router.post('/', auth, async (req, res) => {
-  const { description, amount, type } = req.body;
+  const { description, amount, type, category } = req.body;   
+  if (!description || !amount || !type || !category) {
+    return res.status(400).json({ msg: 'Por favor, inclua todos os campos.' });
+  }
   try {
     const finalAmount = type === 'expense' ? -Math.abs(amount) : Math.abs(amount);
     const newTransaction = new Transaction({
       description,
       amount: finalAmount,
       type,
+      category, 
       user: req.user.id
     });
     const transaction = await newTransaction.save();

@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from "jwt-decode";
+import Spinner from '../components/Spinner'; 
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+const categories = ["Salário", "Comida", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Investimentos", "Outros"];
 
 function DashboardPage() {  
   const [transactions, setTransactions] = useState([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
+  const [category, setCategory] = useState(categories[0]);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const [userName, setUserName] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -30,9 +34,7 @@ function DashboardPage() {
       if (year && month) {
         url += `?year=${year}&month=${month}`;
       }
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       setTransactions(response.data);
     } catch (error) {
       console.error("Erro ao buscar transações:", error);
@@ -48,24 +50,28 @@ function DashboardPage() {
       navigate('/login');
     } else {
       const decodedToken = jwtDecode(token);
-      setUserName(decodedToken.name);     
+      setUserName(decodedToken.name);
       getTransactions(selectedYear, selectedMonth);
     }
-  }, [selectedYear, selectedMonth]); 
+  }, [selectedYear, selectedMonth]);
 
   const addTransaction = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       const token = getToken();
-      const newTransaction = { description, amount: Number(amount), type };
+      const newTransaction = { description, amount: Number(amount), type, category };
       await axios.post(`${API_BASE_URL}/api/transactions`, newTransaction, {
         headers: { Authorization: `Bearer ${token}` }
-      });      
+      });
       getTransactions(selectedYear, selectedMonth);
       setDescription('');
       setAmount('');
+      setCategory(categories[0]);
     } catch (error) {
       console.error("Erro ao adicionar transação:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -74,7 +80,7 @@ function DashboardPage() {
       const token = getToken();
       await axios.delete(`${API_BASE_URL}/api/transactions/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
-      });      
+      });
       getTransactions(selectedYear, selectedMonth);
     } catch (error) {
       console.error("Erro ao deletar transação:", error);
@@ -117,16 +123,16 @@ function DashboardPage() {
         </h2>
         
         <div className="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-col sm:flex-row items-center gap-4 flex-wrap">
-            <span className="font-semibold text-gray-700">Filtrar por:</span>
-            <div className="flex gap-4">
-                <select value={selectedMonth} onChange={(e) => handleFilterChange(selectedYear, e.target.value)} className="border border-gray-300 rounded-md p-2 focus:ring-primary focus:border-primary">
-                    {months.map(m => <option key={m.value} value={m.value}>{m.label.charAt(0).toUpperCase() + m.label.slice(1)}</option>)}
-                </select>
-                <select value={selectedYear} onChange={(e) => handleFilterChange(e.target.value, selectedMonth)} className="border border-gray-300 rounded-md p-2 focus:ring-primary focus:border-primary">
-                    {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-            </div>
-            <button onClick={clearFilters} className="text-primary hover:underline ml-0 sm:ml-auto">Mostrar Mês Atual</button>
+          <span className="font-semibold text-gray-700">Filtrar por:</span>
+          <div className="flex gap-4">
+            <select value={selectedMonth} onChange={(e) => handleFilterChange(selectedYear, e.target.value)} className="border border-gray-300 rounded-md p-2 focus:ring-primary focus:border-primary">
+              {months.map(m => <option key={m.value} value={m.value}>{m.label.charAt(0).toUpperCase() + m.label.slice(1)}</option>)}
+            </select>
+            <select value={selectedYear} onChange={(e) => handleFilterChange(e.target.value, selectedMonth)} className="border border-gray-300 rounded-md p-2 focus:ring-primary focus:border-primary">
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <button onClick={clearFilters} className="text-primary hover:underline ml-0 sm:ml-auto">Mês Atual</button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
@@ -154,6 +160,13 @@ function DashboardPage() {
               <input type="text" id="description" placeholder="Ex: Salário, Aluguel" value={description} onChange={(e) => setDescription(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required />
             </div>
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700">Categoria</label>
+              <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <div className="flex-1">
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Valor</label>
@@ -169,8 +182,8 @@ function DashboardPage() {
                 </select>
               </div>
             </div>
-            <button type="submit" className="w-full bg-primary text-white py-2 px-4 rounded-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
-              Adicionar
+            <button type="submit" className="w-full bg-primary text-white py-2 px-4 rounded-md hover:opacity-90 flex justify-center items-center disabled:opacity-50 transition-colors" disabled={isLoading}>
+              {isLoading ? <Spinner /> : 'Adicionar'}
             </button>
           </form>
         </div>
@@ -181,7 +194,10 @@ function DashboardPage() {
             {transactions.length > 0 ? (
               transactions.map(t => (
                 <div key={t._id} className="bg-white p-3 md:p-4 rounded-lg shadow-md flex justify-between items-center">
-                  <span className="font-semibold text-sm md:text-base text-gray-700">{t.description}</span>
+                  <div>
+                    <span className="block text-xs text-gray-500 font-medium">{t.category}</span>
+                    <span className="font-semibold text-sm md:text-base text-gray-700">{t.description}</span>
+                  </div>
                   <div className="flex items-center space-x-2 md:space-x-4">
                     <span className={`font-bold text-sm md:text-base ${t.amount < 0 ? 'text-danger' : 'text-success'}`}>
                       {currencyFormatter.format(t.amount)}
