@@ -73,4 +73,42 @@ router.delete('/:id', auth, async (req, res) => {
     }
 });
 
+router.put('/:id', auth, async (req, res) => {
+  const { description, amount, type, category } = req.body;
+
+  
+  const updatedFields = {};
+  if (description) updatedFields.description = description;
+  if (amount) updatedFields.amount = amount;
+  if (type) updatedFields.type = type;
+  if (category) updatedFields.category = category;
+  
+  if (type && amount) {
+    updatedFields.amount = type === 'expense' ? -Math.abs(amount) : Math.abs(amount);
+  }
+
+  try {
+    let transaction = await Transaction.findById(req.params.id);
+
+    if (!transaction) {
+      return res.status(404).json({ msg: 'Transação não encontrada.' });
+    }
+   
+    if (transaction.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Não autorizado.' });
+    }
+    
+    transaction = await Transaction.findByIdAndUpdate(
+      req.params.id,
+      { $set: updatedFields },
+      { new: true } 
+    );
+
+    res.json(transaction);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Erro no servidor.');
+  }
+});
+
 module.exports = router;
