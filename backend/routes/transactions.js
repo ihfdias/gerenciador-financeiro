@@ -4,10 +4,33 @@ const auth = require('../middleware/auth');
 const Transaction = require('../models/Transaction');
 
 router.get('/', auth, async (req, res) => {
-  try {
-    const transactions = await Transaction.find({ user: req.user.id }).sort({ date: -1 });
+  try {    
+    const query = { user: req.user.id };
+
+    const { year, month, day } = req.query;
+    
+    if (year && month) {      
+      const startDate = new Date(year, month - 1, 1);
+      
+      let endDate;
+      if (day) {
+       
+        endDate = new Date(year, month - 1, Number(day) + 1);
+      } else {
+        
+        endDate = new Date(year, month, 1);
+      }
+            
+      query.createdAt = {
+        $gte: startDate,
+        $lt: endDate,
+      };
+    }
+
+    const transactions = await Transaction.find(query).sort({ createdAt: -1 });
     res.json(transactions);
   } catch (err) {
+    console.error(err.message);
     res.status(500).send('Erro no servidor.');
   }
 });
