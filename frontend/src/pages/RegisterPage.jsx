@@ -18,7 +18,7 @@ function RegisterPage() {
   setIsLoading(true); // Inicia o carregamento
   setError(''); // Limpa erros antigos
   try {
-    const response = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
+    await axios.post(`${API_BASE_URL}/api/auth/register`, { name, email, password });
     localStorage.setItem('token', response.data.token);
     navigate('/');
   } catch (err) {
