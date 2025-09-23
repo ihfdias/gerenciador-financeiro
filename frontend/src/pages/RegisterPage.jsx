@@ -15,8 +15,8 @@ function RegisterPage() {
 
  const handleSubmit = async (e) => {
   e.preventDefault();
-  setIsLoading(true); // Inicia o carregamento
-  setError(''); // Limpa erros antigos
+  setIsLoading(true); 
+  setError(''); 
   try {
     await axios.post(`${API_BASE_URL}/api/auth/register`, { name, email, password });
     localStorage.setItem('token', response.data.token);
