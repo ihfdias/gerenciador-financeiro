@@ -4,45 +4,54 @@ import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from "jwt-decode";
 import Spinner from '../components/Spinner';
 import EditModal from '../components/EditModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 const categories = ["Salário", "Comida", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Investimentos", "Outros"];
+
+// Função para formatar a data para o input (YYYY-MM-DD) e corrigir fuso horário
+const formatDateForInput = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 
 function DashboardPage() {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const [userName, setUserName] = useState(''); 
+  const [userName, setUserName] = useState('');
+  
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
   const [category, setCategory] = useState(categories[0]);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);  
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState(null);
+
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const getToken = () => localStorage.getItem('token');
-  
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
   
   const getTransactions = async (year, month) => {
     try {
       const token = getToken();
-      let url = `${API_BASE_URL}/api/transactions`;
-      if (year && month) {
-        url += `?year=${year}&month=${month}`;
-      }
+      const url = `${API_BASE_URL}/api/transactions?year=${year}&month=${month}`;
       const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       setTransactions(response.data);
     } catch (error) {
       console.error("Erro ao buscar transações:", error);
-      if (error.response && (error.response.status === 401 || error.response.status === 400)) {
-        handleLogout();
-      }
+      if (error.response?.status === 401) navigate('/login');
     }
   };
 
@@ -62,7 +71,7 @@ function DashboardPage() {
     setIsLoading(true);
     try {
       const token = getToken();
-      const newTransaction = { description, amount: Number(amount), type, category };
+      const newTransaction = { description, amount: Number(amount), type, category, date };
       await axios.post(`${API_BASE_URL}/api/transactions`, newTransaction, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -70,6 +79,7 @@ function DashboardPage() {
       setDescription('');
       setAmount('');
       setCategory(categories[0]);
+      setDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
       console.error("Erro ao adicionar transação:", error);
     } finally {
@@ -77,13 +87,23 @@ function DashboardPage() {
     }
   };
   
-  const deleteTransaction = async (id) => {
+  const handleOpenDeleteModal = (id) => {
+    setTransactionToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+  const handleCloseDeleteModal = () => {
+    setTransactionToDelete(null);
+    setIsDeleteModalOpen(false);
+  };
+  const deleteTransaction = async () => {
+    if (!transactionToDelete) return;
     try {
       const token = getToken();
-      await axios.delete(`${API_BASE_URL}/api/transactions/${id}`, {
+      await axios.delete(`${API_BASE_URL}/api/transactions/${transactionToDelete}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       getTransactions(selectedYear, selectedMonth);
+      handleCloseDeleteModal();
     } catch (error) {
       console.error("Erro ao deletar transação:", error);
     }
@@ -107,11 +127,11 @@ function DashboardPage() {
 
   const handleOpenEditModal = (transaction) => {
     setEditingTransaction(transaction);
-    setIsModalOpen(true);
+    setIsEditModalOpen(true);
   };
 
   const handleCloseModal = () => {
-    setIsModalOpen(false);
+    setIsEditModalOpen(false);
     setEditingTransaction(null);
   };
 
@@ -133,7 +153,7 @@ function DashboardPage() {
   const balance = totalIncome + totalExpense;
 
   return (
-    <div>      
+    <>
       <main className="container mx-auto p-4 md:p-8 max-w-3xl">
         <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">
           Olá, <span className="text-primary">{userName}!</span>
@@ -174,32 +194,32 @@ function DashboardPage() {
           <form onSubmit={addTransaction} className="space-y-4">
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700">Descrição</label>
-              <input type="text" id="description" placeholder="Ex: Salário, Aluguel" value={description} onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required />
+              <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required className="mt-1 block w-full border border-gray-300 rounded-md p-2"/>
+            </div>
+            <div>
+              <label htmlFor="date" className="block text-sm font-medium text-gray-700">Data</label>
+              <input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required className="mt-1 block w-full border border-gray-300 rounded-md p-2"/>
             </div>
             <div>
               <label htmlFor="category" className="block text-sm font-medium text-gray-700">Categoria</label>
-              <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+              <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md p-2">
                 {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
             </div>
-            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <div className="flex space-x-4">
               <div className="flex-1">
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Valor</label>
-                <input type="number" step="0.01" id="amount" placeholder="25.50" value={amount} onChange={(e) => setAmount(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required />
+                <input type="number" step="0.01" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required className="mt-1 block w-full border border-gray-300 rounded-md p-2"/>
               </div>
               <div className="flex-1">
                 <label htmlFor="type" className="block text-sm font-medium text-gray-700">Tipo</label>
-                <select id="type" value={type} onChange={(e) => setType(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                <select id="type" value={type} onChange={(e) => setType(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md p-2">
                   <option value="income">Receita</option>
                   <option value="expense">Despesa</option>
                 </select>
               </div>
             </div>
-            <button type="submit" className="w-full bg-primary text-white py-2 px-4 rounded-md hover:opacity-90 flex justify-center items-center disabled:opacity-50 transition-colors" disabled={isLoading}>
+            <button type="submit" disabled={isLoading} className="w-full bg-primary text-white py-2 px-4 rounded-md hover:opacity-90 flex justify-center items-center disabled:opacity-50">
               {isLoading ? <Spinner /> : 'Adicionar'}
             </button>
           </form>
@@ -211,19 +231,18 @@ function DashboardPage() {
             {transactions.length > 0 ? (
               transactions.map(t => (
                 <div key={t._id} className="bg-white p-3 md:p-4 rounded-lg shadow-md flex justify-between items-center">
-                  <div>
+                  <div className="flex-grow">
                     <span className="block text-xs text-gray-500 font-medium">{t.category}</span>
                     <span className="font-semibold text-sm md:text-base text-gray-700">{t.description}</span>
+                    <span className="block text-xs text-gray-500">{new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</span>
                   </div>
                   <div className="flex items-center space-x-2 md:space-x-4">
-                    <span className={`font-bold text-sm md:text-base ${t.amount < 0 ? 'text-danger' : 'text-success'}`}>
-                      {currencyFormatter.format(t.amount)}
-                    </span>
+                    <span className={`font-bold text-sm md:text-base ${t.amount < 0 ? 'text-danger' : 'text-success'}`}>{currencyFormatter.format(t.amount)}</span>
                     <div className="flex items-center">
                       <button onClick={() => handleOpenEditModal(t)} className="text-gray-400 hover:text-primary transition-colors p-1" aria-label="Editar">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z" /></svg>
                       </button>
-                      <button onClick={() => deleteTransaction(t._id)} className="text-gray-400 hover:text-danger transition-colors p-1" aria-label="Deletar">
+                      <button onClick={() => handleOpenDeleteModal(t._id)} className="text-gray-400 hover:text-danger transition-colors p-1" aria-label="Deletar">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
@@ -237,14 +256,9 @@ function DashboardPage() {
         </div>
       </main>
 
-      {}
-      <EditModal 
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        transaction={editingTransaction}
-        onSave={handleUpdateTransaction}
-      />
-    </div>
+      <EditModal isOpen={isEditModalOpen} onClose={handleCloseModal} transaction={editingTransaction} onSave={handleUpdateTransaction} />
+      <ConfirmationModal isOpen={isDeleteModalOpen} onClose={handleCloseDeleteModal} onConfirm={deleteTransaction} message="Tem certeza que deseja excluir esta transação? A ação não pode ser desfeita."/>
+    </>
   );
 }
 
