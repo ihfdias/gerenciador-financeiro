@@ -132,16 +132,7 @@ function DashboardPage() {
   const totalExpense = transactions.reduce((acc, t) => (t.type === 'expense' ? acc + t.amount : acc), 0);
   const balance = totalIncome + totalExpense;
 
-  return (
-    <div className="bg-background min-h-screen font-sans">
-      <header className="bg-white shadow-md">
-        <nav className="container mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-lg md:text-xl font-bold text-gray-800">Meu Gerenciador</h1>
-          <button onClick={handleLogout} className="bg-danger text-white px-3 py-2 md:px-4 text-sm md:text-base rounded-md hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-danger">
-            Logout
-          </button>
-        </nav>
-      </header>
+  return (    
       <main className="container mx-auto p-4 md:p-8 max-w-3xl">
         <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">
           Olá, <span className="text-primary">{userName}!</span>
