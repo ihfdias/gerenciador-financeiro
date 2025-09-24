@@ -1,12 +1,12 @@
-
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import MainLayout from './components/MainLayout'; 
 
-const ProtectedRoute = ({ children }) => {
+const PrivateWrapper = () => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" />;
+  return token ? <MainLayout /> : <Navigate to="/login" />;
 };
 
 function App() {
@@ -15,16 +15,12 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
+
         {}
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          } 
-        />
+        <Route element={<PrivateWrapper />}>
+          <Route path="/" element={<DashboardPage />} />
+          {}
+        </Route>
       </Routes>
     </Router>
   );
