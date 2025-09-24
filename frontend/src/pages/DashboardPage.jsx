@@ -132,7 +132,8 @@ function DashboardPage() {
   const totalExpense = transactions.reduce((acc, t) => (t.type === 'expense' ? acc + t.amount : acc), 0);
   const balance = totalIncome + totalExpense;
 
-  return (    
+  return (
+    <div>      
       <main className="container mx-auto p-4 md:p-8 max-w-3xl">
         <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">
           Olá, <span className="text-primary">{userName}!</span>
