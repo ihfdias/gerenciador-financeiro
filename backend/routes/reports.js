@@ -17,31 +17,32 @@ router.get('/summary-by-category', auth, async (req, res) => {
     const summary = await Transaction.aggregate([
       {
         $match: {
-          user: new mongoose.Types.ObjectId(req.user.id),
+          user: req.user.id,
           createdAt: { $gte: startDate, $lt: endDate },
           type: 'expense'
         }
-      },
-     
-      {
-        $group: {
-          _id: '$category',
-          total: { $sum: '$amount' }
-        }
-      },
-      
-      {
-        $project: {
-          name: '$_id',
-          value: { $abs: '$total' }
-        }
       }
-    ]);
-    res.json(summary);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Erro no servidor.');
+      },
+
+  {
+    $group: {
+      _id: '$category',
+        total: { $sum: '$amount' }
+    }
+  },
+
+  {
+    $project: {
+      name: '$_id',
+        value: { $abs: '$total' }
+    }
   }
+    ]);
+res.json(summary);
+  } catch (err) {
+  console.error(err.message);
+  res.status(500).send('Erro no servidor.');
+}
 });
 
 module.exports = router;
