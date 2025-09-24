@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import MainLayout from './components/MainLayout'; 
+import AnalyticsDashboardPage from './pages/AnalyticsDashboardPage';
 
 const PrivateWrapper = () => {
   const token = localStorage.getItem('token');
@@ -19,6 +20,7 @@ function App() {
         {}
         <Route element={<PrivateWrapper />}>
           <Route path="/" element={<DashboardPage />} />
+           <Route path="/analytics" element={<AnalyticsDashboardPage />} />
           {}
         </Route>
       </Routes>
