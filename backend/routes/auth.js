@@ -5,9 +5,11 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
-
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ msg: 'Por favor, insira uma senha com no mínimo 6 caracteres.' });
+  }
   try {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: 'Usuário já existe.' });
@@ -56,7 +58,7 @@ router.post('/forgot-password', async (req, res) => {
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
-      secure: true, 
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -72,21 +74,26 @@ router.post('/forgot-password', async (req, res) => {
 
     res.json({ msg: 'Se um e-mail correspondente for encontrado, um link de redefinição será enviado.' });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Erro no servidor.');
+    console.error('ERRO AO ENVIAR E-MAIL:', err);
+    res.status(500).send('Erro no servidor ao enviar e-mail.');
   }
 });
 
 router.post('/reset-password/:id/:token', async (req, res) => {
   const { password } = req.body;
   const { id, token } = req.params;
+  
+  if (!password || password.length < 6) {
+    return res.status(400).json({ msg: 'Por favor, insira uma senha com no mínimo 6 caracteres.' });
+  }
+  
   try {
     const user = await User.findById(id);
     if (!user) return res.status(400).json({ msg: "Link inválido ou expirado." });
 
     const resetSecret = process.env.JWT_SECRET + user.password;
     jwt.verify(token, resetSecret);
-
+    
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
     await user.save();
