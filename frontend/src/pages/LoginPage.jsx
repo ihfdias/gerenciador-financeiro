@@ -53,13 +53,16 @@ function LoginPage() {
           <button
             type="submit"
             className="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 flex justify-center items-center disabled:opacity-50"
-            disabled={isLoading} 
+            disabled={isLoading}
           >
             {isLoading ? <Spinner /> : 'Entrar'}
           </button>
         </form>
         <p className="mt-4 text-center">
           Não tem uma conta? <Link to="/register" className="text-indigo-600 hover:underline">Crie uma</Link>
+        </p>
+        <p className="mt-2 text-center text-sm">
+          <Link to="/forgot-password" className="text-gray-500 hover:text-primary hover:underline">Esqueceu sua senha?</Link>
         </p>
       </div>
     </div>
