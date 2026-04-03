@@ -93,9 +93,6 @@ function LoginPage() {
             <p className="text-slate-400">
               Não tem uma conta? <Link to="/register" className="font-semibold text-sky-300 transition hover:text-sky-200">Crie uma</Link>
             </p>
-            <p>
-              <Link to="/forgot-password" className="text-slate-400 transition hover:text-slate-200">Esqueceu sua senha?</Link>
-            </p>
           </div>
         </section>
       </div>

@@ -24,7 +24,6 @@ Aplicação full-stack para gerenciamento de finanças pessoais com experiência
 
 -   [x] **Autenticação Segura:** Login e sessão com cookie HttpOnly.
 -   [x] **Proteção CSRF:** Rotas sensíveis protegidas contra requisições forjadas.
--   [x] **Recuperação de Senha:** Fluxo de redefinição por e-mail.
 -   [x] **CRUD Completo de Transações:** Criar, listar, editar e remover transações.
 -   [x] **Privacidade por Usuário:** Cada conta acessa apenas os próprios dados.
 -   [x] **Dashboard Moderno:** Resumo do mês com saldo, receitas e despesas.
@@ -151,17 +150,6 @@ FRONTEND_URL=http://localhost:5173
 
 ### Recuperação de senha
 
-Se você quiser manter a funcionalidade de recuperação de senha por e-mail, também configure:
-
-```env
-EMAIL_USER=seu-email@gmail.com
-EMAIL_PASS=sua-senha-de-app
-```
-
-Se essas variáveis não estiverem definidas, o restante do sistema continua funcionando, mas o fluxo de redefinição de senha ficará indisponível.
-
----
-
 ## ☁️ Deploy em Produção
 
 Este projeto está preparado para rodar com:
@@ -197,8 +185,6 @@ Variáveis opcionais:
 
 ```env
 CORS_ORIGINS=https://SEU-FRONTEND.vercel.app
-EMAIL_USER=seu-email@gmail.com
-EMAIL_PASS=sua-senha-de-app
 ```
 
 ### 2. Frontend no Vercel
@@ -232,7 +218,6 @@ Como o frontend e o backend ficam em domínios diferentes, estes pontos são imp
 - Rotacione a senha do usuário do MongoDB Atlas.
 - Gere um `JWT_SECRET` forte e exclusivo para produção.
 - Confirme que seu cluster Atlas aceita conexões do Render.
-- Se for usar recuperação de senha, configure `EMAIL_USER` e `EMAIL_PASS`.
 - Depois do deploy do backend, atualize `VITE_API_URL` no Vercel.
 - Depois do deploy do frontend, atualize `FRONTEND_URL` no Render.
 

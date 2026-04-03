@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const {
@@ -31,14 +30,6 @@ const loginRateLimit = createRateLimiter({
   maxRequests: 10,
   message: 'Muitas tentativas de login. Tente novamente em alguns minutos.',
 });
-
-const passwordResetRateLimit = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  maxRequests: 5,
-  message: 'Muitas tentativas de recuperação de senha. Tente novamente em alguns minutos.',
-});
-
-const GENERIC_RESET_MESSAGE = 'Se um e-mail correspondente for encontrado, um link de redefinição será enviado.';
 
 function getCookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -133,86 +124,6 @@ router.post('/logout', auth, csrfProtection, (req, res) => {
   });
   clearCsrfCookie(res);
   res.status(204).send();
-});
-
-router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
-  const email = sanitizeEmail(req.body?.email);
-
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ msg: 'Informe um e-mail válido.' });
-  }
-
-  try {
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return res.status(200).json({ msg: GENERIC_RESET_MESSAGE });
-    }
-
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !process.env.FRONTEND_URL) {
-      console.error('Configuração de e-mail ou FRONTEND_URL ausente para recuperação de senha.');
-      return res.status(503).json({ msg: 'Serviço de recuperação de senha indisponível no momento.' });
-    }
-
-    const resetSecret = process.env.JWT_SECRET + user.password;
-    const resetToken = jwt.sign({ id: user.id, type: 'password-reset' }, resetSecret, { expiresIn: '15m' });
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${user.id}/${resetToken}`;
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"Gerenciador Financeiro" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Redefinição de Senha',
-      html: `<p>Olá ${user.name},</p><p>Você solicitou a redefinição de sua senha. Clique no link a seguir para criar uma nova:</p><p><a href="${resetLink}">Redefinir Senha</a></p><p>Este link é válido por 15 minutos.</p>`,
-    });
-
-    res.json({ msg: GENERIC_RESET_MESSAGE });
-  } catch (err) {
-    console.error('ERRO AO ENVIAR E-MAIL:', err);
-    res.status(500).json({ msg: 'Erro no servidor ao enviar e-mail.' });
-  }
-});
-
-router.post('/reset-password/:id/:token', passwordResetRateLimit, async (req, res) => {
-  const password = req.body?.password;
-  const { id, token } = req.params;
-
-  if (!isValidObjectId(id) || typeof token !== 'string' || token.length < 20) {
-    return res.status(400).json({ msg: 'Link inválido ou expirado.' });
-  }
-
-  if (!password || password.length < 6) {
-    return res.status(400).json({ msg: 'Por favor, insira uma senha com no mínimo 6 caracteres.' });
-  }
-
-  try {
-    const user = await User.findById(id).select('+password');
-    if (!user) return res.status(400).json({ msg: "Link inválido ou expirado." });
-
-    const resetSecret = process.env.JWT_SECRET + user.password;
-    const decoded = jwt.verify(token, resetSecret);
-
-    if (decoded.id !== user.id || decoded.type !== 'password-reset') {
-      return res.status(400).json({ msg: 'Link inválido ou expirado. Tente novamente.' });
-    }
-    
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    await user.save();
-
-    res.json({ msg: 'Senha redefinida com sucesso!' });
-  } catch (err) {
-    console.error(err.message);
-    res.status(400).json({ msg: 'Link inválido ou expirado. Tente novamente.' });
-  }
 });
 
 module.exports = router;
