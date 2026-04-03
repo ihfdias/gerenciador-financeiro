@@ -3,10 +3,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        'primary': '#475569',   
-        'success': '#10b981',   
-        'danger': '#f97316',    
-        'background': '#f1f5f9' 
+        'primary': '#38bdf8',
+        'success': '#34d399',
+        'danger': '#fb7185',
+        'background': '#07111f'
+      },
+      boxShadow: {
+        glow: '0 20px 60px rgba(56, 189, 248, 0.25)',
       },
     },
   },

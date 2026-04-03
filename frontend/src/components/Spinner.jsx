@@ -2,7 +2,7 @@ import React from 'react';
 
 function Spinner() {
   return (
-    <div className="border-t-transparent border-solid animate-spin rounded-full border-white border-2 h-5 w-5"></div>
+    <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-100/40 border-t-sky-300" />
   );
 }
 

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import api from '../lib/api';
 
 function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -12,30 +10,31 @@ function ForgotPasswordPage() {
     e.preventDefault();
     setMessage('');
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, { email });
+      const res = await api.post('/api/auth/forgot-password', { email });
       setMessage(res.data.msg);
-    } catch (err) {
+    } catch {
       setMessage('Ocorreu um erro. Tente novamente mais tarde.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Recuperar Senha</h2>
+    <div className="app-shell flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="glass-panel section-reveal w-full max-w-lg p-6 md:p-8 lg:p-10">
+        <span className="soft-label">Recuperação</span>
+        <h2 className="mt-3 text-4xl font-bold text-slate-50">Recuperar senha</h2>
         {message ? (
-          <p className="text-center text-green-600 bg-green-100 p-3 rounded-md">{message}</p>
+          <p className="mt-6 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4 text-center text-sm text-emerald-200">{message}</p>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-center text-gray-600">Digite seu email e, se ele estiver cadastrado, enviaremos um link para redefinir sua senha.</p>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <p className="text-sm leading-7 text-slate-300">Digite seu email e, se ele estiver cadastrado, enviaremos um link para redefinir sua senha.</p>
             <div>
-                <label className="block text-gray-700 font-medium">Email</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required />
+                <label className="mb-2 block text-sm font-medium text-slate-200">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-shell" placeholder="voce@email.com" required />
             </div>
-            <button type="submit" className="w-full bg-primary text-white py-2 rounded-md hover:opacity-90">Enviar Link de Recuperação</button>
+            <button type="submit" className="primary-button w-full">Enviar link de recuperação</button>
           </form>
         )}
-        <p className="mt-6 text-center"><Link to="/login" className="text-primary hover:underline">Voltar para o Login</Link></p>
+        <p className="mt-6 text-center text-sm"><Link to="/login" className="text-slate-400 transition hover:text-slate-200">Voltar para o login</Link></p>
       </div>
     </div>
   );

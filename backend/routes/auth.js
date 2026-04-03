@@ -4,12 +4,78 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/User');
+const auth = require('../middleware/auth');
+const {
+  clearCsrfCookie,
+  csrfProtection,
+  setCsrfCookie,
+} = require('../middleware/csrf');
+const createRateLimiter = require('../middleware/rateLimit');
+const {
+  isValidEmail,
+  isValidObjectId,
+  sanitizeEmail,
+  sanitizeString,
+} = require('../utils/validation');
+const { generateSecureToken } = require('../utils/tokens');
+
+const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'financeiro_auth';
+const authRateLimit = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 20,
+  message: 'Muitas tentativas nesta rota. Tente novamente em alguns minutos.',
+});
+
+const loginRateLimit = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 10,
+  message: 'Muitas tentativas de login. Tente novamente em alguns minutos.',
+});
+
+const passwordResetRateLimit = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 5,
+  message: 'Muitas tentativas de recuperação de senha. Tente novamente em alguns minutos.',
+});
+
+const GENERIC_RESET_MESSAGE = 'Se um e-mail correspondente for encontrado, um link de redefinição será enviado.';
+
+function getCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const secure = isProduction || process.env.COOKIE_SECURE === 'true';
+
+  return {
+    httpOnly: true,
+    sameSite: secure ? 'none' : 'lax',
+    secure,
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000,
+  };
+}
+
+function createAuthPayload(user) {
+  return { id: user.id, name: user.name };
+}
+
+router.use(authRateLimit);
 
 router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
+  const name = sanitizeString(req.body?.name);
+  const email = sanitizeEmail(req.body?.email);
+  const password = req.body?.password;
+
+  if (!name || name.length < 2 || name.length > 80) {
+    return res.status(400).json({ msg: 'Informe um nome válido.' });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ msg: 'Informe um e-mail válido.' });
+  }
+
   if (!password || password.length < 6) {
     return res.status(400).json({ msg: 'Por favor, insira uma senha com no mínimo 6 caracteres.' });
   }
+
   try {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: 'Usuário já existe.' });
@@ -21,38 +87,74 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ msg: 'Usuário registrado com sucesso!' });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Erro no servidor.');
+    res.status(500).json({ msg: 'Erro no servidor.' });
   }
 });
 
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+router.post('/login', loginRateLimit, async (req, res) => {
+  const email = sanitizeEmail(req.body?.email);
+  const password = req.body?.password;
+
+  if (!isValidEmail(email) || typeof password !== 'string' || !password) {
+    return res.status(400).json({ msg: 'Credenciais inválidas.' });
+  }
+
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
     if (!user) return res.status(400).json({ msg: 'Credenciais inválidas.' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: 'Credenciais inválidas.' });
 
-    const payload = { id: user.id, name: user.name };
+    const payload = createAuthPayload(user);
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
-    res.json({ token });
+    const csrfToken = generateSecureToken();
+    res.cookie(AUTH_COOKIE_NAME, token, getCookieOptions());
+    setCsrfCookie(res, csrfToken);
+    res.json({ user: payload, csrfToken });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Erro no servidor.');
+    res.status(500).json({ msg: 'Erro no servidor.' });
   }
 });
 
-router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
+router.get('/me', async (req, res) => {
+  auth(req, res, () => {
+    const csrfToken = generateSecureToken();
+    setCsrfCookie(res, csrfToken);
+    res.json({ user: req.user, csrfToken });
+  });
+});
+
+router.post('/logout', auth, csrfProtection, (req, res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    ...getCookieOptions(),
+    maxAge: undefined,
+  });
+  clearCsrfCookie(res);
+  res.status(204).send();
+});
+
+router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
+  const email = sanitizeEmail(req.body?.email);
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ msg: 'Informe um e-mail válido.' });
+  }
+
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(200).json({ msg: 'Se um e-mail correspondente for encontrado, um link de redefinição será enviado.' });
+      return res.status(200).json({ msg: GENERIC_RESET_MESSAGE });
+    }
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !process.env.FRONTEND_URL) {
+      console.error('Configuração de e-mail ou FRONTEND_URL ausente para recuperação de senha.');
+      return res.status(503).json({ msg: 'Serviço de recuperação de senha indisponível no momento.' });
     }
 
     const resetSecret = process.env.JWT_SECRET + user.password;
-    const resetToken = jwt.sign({ id: user.id }, resetSecret, { expiresIn: '15m' });
+    const resetToken = jwt.sign({ id: user.id, type: 'password-reset' }, resetSecret, { expiresIn: '15m' });
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${user.id}/${resetToken}`;
 
     const transporter = nodemailer.createTransport({
@@ -72,27 +174,35 @@ router.post('/forgot-password', async (req, res) => {
       html: `<p>Olá ${user.name},</p><p>Você solicitou a redefinição de sua senha. Clique no link a seguir para criar uma nova:</p><p><a href="${resetLink}">Redefinir Senha</a></p><p>Este link é válido por 15 minutos.</p>`,
     });
 
-    res.json({ msg: 'Se um e-mail correspondente for encontrado, um link de redefinição será enviado.' });
+    res.json({ msg: GENERIC_RESET_MESSAGE });
   } catch (err) {
     console.error('ERRO AO ENVIAR E-MAIL:', err);
-    res.status(500).send('Erro no servidor ao enviar e-mail.');
+    res.status(500).json({ msg: 'Erro no servidor ao enviar e-mail.' });
   }
 });
 
-router.post('/reset-password/:id/:token', async (req, res) => {
-  const { password } = req.body;
+router.post('/reset-password/:id/:token', passwordResetRateLimit, async (req, res) => {
+  const password = req.body?.password;
   const { id, token } = req.params;
-  
+
+  if (!isValidObjectId(id) || typeof token !== 'string' || token.length < 20) {
+    return res.status(400).json({ msg: 'Link inválido ou expirado.' });
+  }
+
   if (!password || password.length < 6) {
     return res.status(400).json({ msg: 'Por favor, insira uma senha com no mínimo 6 caracteres.' });
   }
-  
+
   try {
-    const user = await User.findById(id);
+    const user = await User.findById(id).select('+password');
     if (!user) return res.status(400).json({ msg: "Link inválido ou expirado." });
 
     const resetSecret = process.env.JWT_SECRET + user.password;
-    jwt.verify(token, resetSecret);
+    const decoded = jwt.verify(token, resetSecret);
+
+    if (decoded.id !== user.id || decoded.type !== 'password-reset') {
+      return res.status(400).json({ msg: 'Link inválido ou expirado. Tente novamente.' });
+    }
     
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);

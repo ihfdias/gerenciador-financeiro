@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: gerenciador-financeiro-api
+    runtime: node
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm run start:backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: AUTH_COOKIE_NAME
+        value: financeiro_auth
+      - key: CSRF_COOKIE_NAME
+        value: financeiro_csrf

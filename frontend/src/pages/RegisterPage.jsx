@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import api from '../lib/api';
 
 function RegisterPage() {
   const [name, setName] = useState('');
@@ -15,7 +13,7 @@ function RegisterPage() {
     e.preventDefault();
     setError(''); 
     try {      
-      await axios.post(`${API_BASE_URL}/api/auth/register`, { name, email, password });            
+      await api.post('/api/auth/register', { name, email, password });            
       navigate('/login', { state: { message: 'Conta criada com sucesso! Faça o login.' } });
     } catch (err) {      
       setError('Erro ao registrar. O email já pode estar em uso.');
@@ -24,51 +22,58 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Criar Conta</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-danger text-center mb-4">{error}</p>}
-          
+    <div className="app-shell flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="glass-panel section-reveal w-full max-w-xl p-6 md:p-8 lg:p-10">
+        <span className="soft-label">Primeiro acesso</span>
+        <h2 className="mt-3 text-4xl font-bold text-slate-50">Criar conta</h2>
+        <p className="mt-3 text-sm leading-7 text-slate-300">Monte seu espaço financeiro com uma base organizada desde o começo.</p>
+
+        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          {error && <p className="rounded-2xl border border-rose-300/20 bg-rose-300/10 p-3 text-center text-sm text-rose-200">{error}</p>}
+
           <div>
-            <label className="block text-gray-700 font-medium">Nome</label>
+            <label className="mb-2 block text-sm font-medium text-slate-200">Nome</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+              className="input-shell"
+              placeholder="Como você gostaria de ser chamado?"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium">Email</label>
+            <label className="mb-2 block text-sm font-medium text-slate-200">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+              className="input-shell"
+              placeholder="voce@email.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium">Senha</label>
+            <label className="mb-2 block text-sm font-medium text-slate-200">Senha</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
+              className="input-shell"
+              placeholder="Crie uma senha segura"
               required
             />
           </div>
 
-          <button type="submit" className="w-full bg-primary text-white py-2 rounded-md hover:opacity-90 transition-opacity">
-            Registrar
+          <button type="submit" className="primary-button w-full">
+            Criar minha conta
           </button>
         </form>
-        <p className="mt-6 text-center">
-          Já tem uma conta? <Link to="/login" className="text-primary hover:underline">Faça login</Link>
+
+        <p className="mt-6 text-center text-sm text-slate-400">
+          Já tem uma conta? <Link to="/login" className="font-semibold text-sky-300 transition hover:text-sky-200">Faça login</Link>
         </p>
       </div>
     </div>
