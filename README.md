@@ -7,7 +7,7 @@
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 
-Aplicação full-stack completa para gerenciamento de finanças pessoais. Permite que usuários se cadastrem, façam login e controlem suas receitas e despesas de forma segura, com dados privados para cada conta.
+Aplicação full-stack para gerenciamento de finanças pessoais com experiência visual moderna, autenticação segura por cookie HttpOnly, proteção CSRF e dashboard com análises mensais.
 
 ![Demo da Aplicação]()
 
@@ -22,15 +22,15 @@ Aplicação full-stack completa para gerenciamento de finanças pessoais. Permit
 
 ## ✨ Funcionalidades Principais
 
--   [x] **Autenticação de Usuários:** Sistema completo de registro e login.
--   [x] **Segurança:** Senhas criptografadas com `bcrypt` e rotas protegidas com `JWT`.
--   [x] **CRUD Completo de Transações:** Funcionalidade de Criar, Ler, **Editar** e Deletar transações.
--   [x] **Privacidade de Dados:** Cada usuário tem acesso apenas às suas próprias transações.
--   [x] **Dashboard Interativo:** Resumo em tempo real de receitas, despesas e saldo.
--   [x] **Categorização:** Transações podem ser classificadas em categorias (Salário, Comida, etc.).
--   [x] **Filtros de Data:** Visualização de transações por mês e ano.
--   [x] **UX Melhorada:** Saudação personalizada, indicadores de carregamento (spinners) e formatação de moeda para o padrão brasileiro.
--   [x] **Design Responsivo:** Interface moderna e adaptável a diferentes tamanhos de tela.
+-   [x] **Autenticação Segura:** Login e sessão com cookie HttpOnly.
+-   [x] **Proteção CSRF:** Rotas sensíveis protegidas contra requisições forjadas.
+-   [x] **Recuperação de Senha:** Fluxo de redefinição por e-mail.
+-   [x] **CRUD Completo de Transações:** Criar, listar, editar e remover transações.
+-   [x] **Privacidade por Usuário:** Cada conta acessa apenas os próprios dados.
+-   [x] **Dashboard Moderno:** Resumo do mês com saldo, receitas e despesas.
+-   [x] **Análise Visual:** Gráfico por categoria com leitura rápida e legenda customizada.
+-   [x] **Interface Renovada:** Visual glassmorphism, tipografia refinada e boa experiência mobile.
+-   [x] **Deploy Ready:** Estrutura preparada para Vercel + Render + MongoDB Atlas.
 
 ---
 
@@ -42,14 +42,16 @@ Este projeto foi construído utilizando uma stack moderna de JavaScript, com uma
 * **Node.js** e **Express.js** para a API RESTful.
 * **MongoDB Atlas** como banco de dados NoSQL.
 * **Mongoose** para modelagem dos dados.
-* **`jsonwebtoken`** e **`bcryptjs`** para o fluxo de autenticação.
-* **Arquitetura Modular** com rotas, modelos e middlewares separados.
+* **`jsonwebtoken`**, **`bcryptjs`** e cookies seguros para autenticação.
+* **Proteções de segurança** com validação de payload, CORS restrito, rate limit e CSRF.
+* **Arquitetura modular** com rotas, modelos, middlewares e utilitários separados.
 
 #### **Front-end**
 * **React** (com **Vite**) para a interface de usuário.
 * **React Router** para navegação e rotas protegidas.
-* **Tailwind CSS** para estilização "utility-first" e tema customizado.
-* **Axios** para a comunicação com a API.
+* **Tailwind CSS** para estilização com tema customizado.
+* **Axios** para comunicação com a API.
+* **Code-splitting** com lazy loading e otimização de chunks para melhor carregamento.
 
 #### **Ambiente e Deploy**
 * **Git & GitHub** para versionamento de código.
@@ -82,6 +84,22 @@ Este projeto foi construído utilizando uma stack moderna de JavaScript, com uma
     npm run dev
     ```
     Este comando iniciará o back-end e o front-end simultaneamente.
+
+5.  **Acesse localmente:**
+    - Frontend: `http://localhost:5173`
+    - Backend: `http://localhost:3001`
+
+---
+
+## 🔐 Segurança Implementada
+
+- Sessão com cookie `HttpOnly`
+- Proteção CSRF para rotas autenticadas de escrita
+- Validação de entrada no backend
+- Rate limit em rotas sensíveis
+- CORS com origens controladas
+- Headers básicos de segurança no backend e no frontend
+- Senhas com hash usando `bcryptjs`
 
 ---
 
