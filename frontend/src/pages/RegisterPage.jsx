@@ -7,17 +7,22 @@ function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); 
-    try {      
-      await api.post('/api/auth/register', { name, email, password });            
+    setError('');
+    setIsLoading(true);
+    try {
+      await api.post('/api/auth/register', { name, email, password });
       navigate('/login', { state: { message: 'Conta criada com sucesso! Faça o login.' } });
-    } catch (err) {      
-      setError('Erro ao registrar. O email já pode estar em uso.');
+    } catch (err) {
+      const apiMessage = err.response?.data?.msg;
+      setError(apiMessage || 'Não foi possível criar sua conta agora. Tente novamente em instantes.');
       console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -67,8 +72,8 @@ function RegisterPage() {
             />
           </div>
 
-          <button type="submit" className="primary-button w-full">
-            Criar minha conta
+          <button type="submit" className="primary-button w-full disabled:opacity-60" disabled={isLoading}>
+            {isLoading ? 'Criando conta...' : 'Criar minha conta'}
           </button>
         </form>
 
