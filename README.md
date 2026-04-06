@@ -1,4 +1,4 @@
-# 💰 Gerenciador Financeiro Pessoal
+# Gerenciador Financeiro Pessoal
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,14 +13,14 @@ Aplicação full-stack para gerenciamento de finanças pessoais com experiência
 
 ---
 
-## 🚀 Links para o Deploy
+## Links para o Deploy
 
 * **Front-end (Vercel):** [https://gerenciador-financeiro-two.vercel.app]()
 * **Back-end (Render):** [https://gerenciador-financeiro-api-sbss.onrender.com]()
 
 ---
 
-## ✨ Funcionalidades Principais
+## Funcionalidades Principais
 
 -   [x] **Autenticação Segura:** Login e sessão com cookie HttpOnly.
 -   [x] **Proteção CSRF:** Rotas sensíveis protegidas contra requisições forjadas.
@@ -33,7 +33,7 @@ Aplicação full-stack para gerenciamento de finanças pessoais com experiência
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Tecnologias Utilizadas
 
 Este projeto foi construído utilizando uma stack moderna de JavaScript, com uma estrutura de monorepo gerenciada por **npm Workspaces**.
 
@@ -60,7 +60,7 @@ Este projeto foi construído utilizando uma stack moderna de JavaScript, com uma
 
 ---
 
-## 🔧 Como Executar o Projeto Localmente
+## Como Executar o Projeto Localmente
 
 1.  **Clone o Repositório:**
     ```bash
@@ -90,7 +90,7 @@ Este projeto foi construído utilizando uma stack moderna de JavaScript, com uma
 
 ---
 
-## 🔐 Segurança Implementada
+## Segurança Implementada
 
 - Sessão com cookie `HttpOnly`
 - Proteção CSRF para rotas autenticadas de escrita
@@ -150,7 +150,7 @@ FRONTEND_URL=http://localhost:5173
 
 ### Recuperação de senha
 
-## ☁️ Deploy em Produção
+## Deploy em Produção
 
 Este projeto está preparado para rodar com:
 
