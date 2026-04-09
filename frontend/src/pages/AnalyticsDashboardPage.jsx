@@ -2,29 +2,58 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import PeriodNavigator from '../components/PeriodNavigator';
+import PeriodLoadingCard from '../components/PeriodLoadingCard';
+import {
+  buildPeriodQuery,
+  formatPeriodLabel,
+  getMonthDateRange,
+  getPresetDateRange,
+  isRangeReady,
+  isRangeValid,
+} from '../utils/period';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF19AF'];
-const previewSummaryData = [
-  { name: 'Moradia', value: 1650 },
-  { name: 'Comida', value: 420.7 },
-  { name: 'Investimentos', value: 600 },
-  { name: 'Lazer', value: 260 },
-  { name: 'Transporte', value: 180 },
-];
 
 function AnalyticsDashboardPage() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentMonthRange = getMonthDateRange(currentYear, currentMonth);
   const [summaryData, setSummaryData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [filterMode, setFilterMode] = useState('month');
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [startDate, setStartDate] = useState(currentMonthRange.startDate);
+  const [endDate, setEndDate] = useState(currentMonthRange.endDate);
+  const [activePreset, setActivePreset] = useState(null);
   const [isCompact, setIsCompact] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
   const { logout } = useAuth();
+  const isRangeFilterReady = isRangeReady(startDate, endDate);
+  const isRangeFilterValid = isRangeValid(startDate, endDate);
+  const rangeError = filterMode === 'range' && isRangeFilterReady && !isRangeFilterValid
+    ? 'A data inicial precisa ser anterior ou igual à data final.'
+    : '';
+  const queryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
 
   useEffect(() => {
     const fetchSummaryData = async () => {
+      if (filterMode === 'range' && !isRangeFilterReady) {
+        setSummaryData([]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (filterMode === 'range' && !isRangeFilterValid) {
+        setSummaryData([]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const response = await api.get(`/api/reports/summary-by-category?year=${selectedYear}&month=${selectedMonth}`);
+        const response = await api.get(`/api/reports/summary-by-category?${queryString}`);
         setSummaryData(response.data);
       } catch (error) {
         console.error("Erro ao buscar dados do resumo:", error);
@@ -38,7 +67,7 @@ function AnalyticsDashboardPage() {
     };
 
     fetchSummaryData();
-  }, [logout, selectedMonth, selectedYear]);
+  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, queryString, selectedMonth, selectedYear, startDate]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -49,14 +78,30 @@ function AnalyticsDashboardPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => ({
     value: i + 1,
     label: new Date(2000, i).toLocaleString('pt-BR', { month: 'long' })
   }));
-  const displaySummaryData = summaryData.length > 0 ? summaryData : previewSummaryData;
-  const isPreview = summaryData.length === 0;
+  const rangePresets = [
+    { value: 'last7Days', label: 'Últimos 7 dias' },
+    { value: 'last30Days', label: 'Últimos 30 dias' },
+    { value: 'thisYear', label: 'Este ano' },
+  ];
+  const activePeriodLabel = formatPeriodLabel({
+    filterMode,
+    selectedYear,
+    selectedMonth,
+    startDate,
+    endDate,
+  });
+  const displaySummaryData = summaryData;
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const shiftPeriod = (direction) => {
+    const period = new Date(selectedYear, selectedMonth - 1, 1);
+    period.setMonth(period.getMonth() + direction);
+    setSelectedYear(period.getFullYear());
+    setSelectedMonth(period.getMonth() + 1);
+  };
 
   return (
     <div className="page-container">
@@ -68,28 +113,74 @@ function AnalyticsDashboardPage() {
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
               Veja para onde seu dinheiro está indo e identifique padrões com uma visualização mais clara e comparável.
             </p>
+            <p className="mt-4 inline-flex rounded-full border border-sky-300/15 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-100">
+              Exibindo: {activePeriodLabel}
+            </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="input-shell min-w-[180px]">
-              {months.map(m => <option key={m.value} value={m.value}>{m.label.charAt(0).toUpperCase() + m.label.slice(1)}</option>)}
-            </select>
-            <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="input-shell min-w-[140px]">
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
+          <PeriodNavigator
+            filterMode={filterMode}
+            onModeChange={(nextMode) => {
+              setFilterMode(nextMode);
+              setActivePreset(null);
+              if (nextMode === 'range') {
+                const selectedRange = getMonthDateRange(selectedYear, selectedMonth);
+                setStartDate(selectedRange.startDate);
+                setEndDate(selectedRange.endDate);
+              }
+            }}
+            months={months}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            onMonthChange={(month) => setSelectedMonth(parseInt(month, 10))}
+            onYearChange={(year) => setSelectedYear(parseInt(year, 10))}
+            onPrevious={() => shiftPeriod(-1)}
+            onNext={() => shiftPeriod(1)}
+            onReset={() => {
+              setFilterMode('month');
+              setActivePreset(null);
+              setSelectedYear(currentYear);
+              setSelectedMonth(currentMonth);
+              const resetRange = getMonthDateRange(currentYear, currentMonth);
+              setStartDate(resetRange.startDate);
+              setEndDate(resetRange.endDate);
+            }}
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={(value) => {
+              setActivePreset(null);
+              setStartDate(value);
+            }}
+            onEndDateChange={(value) => {
+              setActivePreset(null);
+              setEndDate(value);
+            }}
+            presets={rangePresets}
+            activePreset={activePreset}
+            onPresetSelect={(preset) => {
+              const range = getPresetDateRange(preset, new Date());
+
+              if (!range) {
+                return;
+              }
+
+              setFilterMode('range');
+              setActivePreset(preset);
+              setStartDate(range.startDate);
+              setEndDate(range.endDate);
+            }}
+            rangeError={rangeError}
+          />
         </div>
       </section>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="glass-card section-reveal elevated-hover p-6">
           <span className="soft-label">Leitura rápida</span>
-          {isPreview && (
-            <p className="mt-4 rounded-2xl border border-sky-300/15 bg-sky-300/10 px-4 py-3 text-sm text-sky-100">
-              Prévia visual com categorias fictícias para você sentir a apresentação da análise.
-            </p>
-          )}
+          <h3 className="mt-3 text-2xl font-bold text-slate-50">Categorias de {activePeriodLabel}</h3>
           <div className="mt-6 space-y-4">
-            {displaySummaryData.length > 0 ? displaySummaryData.slice(0, 5).map((item) => (
+            {isLoading && !rangeError ? (
+              <PeriodLoadingCard lines={4} className="!border-transparent !bg-transparent !p-0 shadow-none" />
+            ) : !rangeError && displaySummaryData.length > 0 ? displaySummaryData.slice(0, 5).map((item) => (
               <div key={item.name} className="rounded-2xl bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <p className="font-semibold text-slate-100">{item.name}</p>
@@ -98,9 +189,13 @@ function AnalyticsDashboardPage() {
                   </p>
                 </div>
               </div>
-            )) : (
-              <div className="rounded-2xl bg-white/5 p-4 text-sm leading-7 text-slate-300">
-                Quando houver despesas no período, você verá aqui as categorias mais relevantes.
+            )) : rangeError ? (
+              <div className="rounded-2xl bg-white/5 p-5 text-sm leading-7 text-rose-300">
+                Ajuste o intervalo para continuar. A data inicial precisa ser anterior ou igual à data final.
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white/5 p-5 text-sm leading-7 text-slate-300">
+                Nenhuma despesa encontrada para {activePeriodLabel}. Quando você registrar gastos nesse período, as categorias mais relevantes aparecerão aqui.
               </div>
             )}
           </div>
@@ -109,12 +204,18 @@ function AnalyticsDashboardPage() {
         <div className="glass-panel section-reveal p-6">
           <div className="mb-4">
             <span className="soft-label">Distribuição</span>
-            <h3 className="mt-3 text-3xl font-bold text-slate-50">Participação por categoria</h3>
+            <h3 className="mt-3 text-3xl font-bold text-slate-50">Participação por categoria em {activePeriodLabel}</h3>
           </div>
           <div className="glass-card p-4" style={{ height: isCompact ? '360px' : '500px' }}>
             {isLoading ? (
-              <div className="flex h-full items-center justify-center text-slate-300">Carregando dados...</div>
-            ) : displaySummaryData.length > 0 ? (
+              <div className="flex h-full flex-col justify-center gap-4">
+                <div className="skeleton-block mx-auto h-56 w-56 rounded-full" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="skeleton-block h-12 w-full" />
+                  <div className="skeleton-block h-12 w-full" />
+                </div>
+              </div>
+            ) : !rangeError && displaySummaryData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -157,9 +258,24 @@ function AnalyticsDashboardPage() {
                   />
                 </PieChart>
               </ResponsiveContainer>
+            ) : rangeError ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <p className="text-lg font-semibold text-slate-100">Intervalo inválido</p>
+                <p className="mt-2 max-w-sm text-sm leading-7 text-slate-400">
+                  Escolha uma data inicial anterior ou igual à data final para montar o gráfico desse recorte.
+                </p>
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400">Nenhuma despesa encontrada para este período.</p>
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-300/12 text-sky-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6m3 6V7m3 10v-4m3 7H3" />
+                  </svg>
+                </div>
+                <p className="mt-5 text-lg font-semibold text-slate-100">Ainda não há dados para {activePeriodLabel}</p>
+                <p className="mt-2 max-w-sm text-sm leading-7 text-slate-400">
+                  Assim que você lançar despesas nesse período, o gráfico vai mostrar a participação de cada categoria.
+                </p>
               </div>
             )}
           </div>

@@ -4,6 +4,8 @@ const auth = require('../middleware/auth');
 const { csrfProtection } = require('../middleware/csrf');
 const Transaction = require('../models/Transaction');
 const {
+  buildDateRange,
+  buildMonthRange,
   isValidObjectId,
   parseDate,
   parseMoney,
@@ -68,18 +70,30 @@ router.get('/', auth, async (req, res) => {
     const query = { user: req.user.id };
     const year = parsePositiveInteger(req.query.year);
     const month = parsePositiveInteger(req.query.month);
+    const { startDate: startDateParam, endDate: endDateParam } = req.query;
 
     if ((req.query.year && !year) || (req.query.month && (!month || month > 12))) {
       return res.status(400).json({ msg: 'Filtro de data inválido.' });
     }
 
-    if (year && month) {
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 1);
-      query.date = { $gte: startDate, $lt: endDate }; 
+    if ((startDateParam && !endDateParam) || (!startDateParam && endDateParam)) {
+      return res.status(400).json({ msg: 'Informe a data inicial e final para filtrar por intervalo.' });
     }
 
-    const transactions = await Transaction.find(query).sort({ date: -1 }); 
+    if (startDateParam && endDateParam) {
+      const range = buildDateRange(startDateParam, endDateParam);
+
+      if (!range) {
+        return res.status(400).json({ msg: 'Intervalo de datas inválido.' });
+      }
+
+      query.date = { $gte: range.startDate, $lt: range.endDate };
+    } else if (year && month) {
+      const { startDate, endDate } = buildMonthRange(year, month);
+      query.date = { $gte: startDate, $lt: endDate };
+    }
+
+    const transactions = await Transaction.find(query).sort({ date: -1 });
     res.json(transactions);
   } catch (err) {
     res.status(500).json({ msg: 'Erro no servidor.' });

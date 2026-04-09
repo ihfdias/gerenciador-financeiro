@@ -3,54 +3,43 @@ import { useNavigate } from 'react-router-dom';
 import Spinner from '../components/Spinner';
 import EditModal from '../components/EditModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PeriodNavigator from '../components/PeriodNavigator';
+import PeriodLoadingCard from '../components/PeriodLoadingCard';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import {
+  buildPeriodQuery,
+  formatDateInput,
+  formatPeriodLabel,
+  getMonthDateRange,
+  getPresetDateRange,
+  isRangeReady,
+  isRangeValid,
+} from '../utils/period';
 const categories = ["Salário", "Comida", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Investimentos", "Outros"];
 
-const previewTransactions = [
-  {
-    _id: 'preview-1',
-    category: 'Salário',
-    description: 'Pagamento mensal',
-    date: '2026-04-05',
-    amount: 4850,
-  },
-  {
-    _id: 'preview-2',
-    category: 'Moradia',
-    description: 'Aluguel do apartamento',
-    date: '2026-04-07',
-    amount: -1650,
-  },
-  {
-    _id: 'preview-3',
-    category: 'Comida',
-    description: 'Compras do mercado',
-    date: '2026-04-09',
-    amount: -420.7,
-  },
-  {
-    _id: 'preview-4',
-    category: 'Investimentos',
-    description: 'Aporte mensal',
-    date: '2026-04-12',
-    amount: -600,
-  },
-];
-
 function DashboardPage() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentMonthRange = getMonthDateRange(currentYear, currentMonth);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPeriodLoading, setIsPeriodLoading] = useState(false);
   const navigate = useNavigate();
   
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
   const [category, setCategory] = useState(categories[0]);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(formatDateInput(now));
 
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [filterMode, setFilterMode] = useState('month');
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [startDate, setStartDate] = useState(currentMonthRange.startDate);
+  const [endDate, setEndDate] = useState(currentMonthRange.endDate);
+  const [activePreset, setActivePreset] = useState(null);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -60,11 +49,40 @@ function DashboardPage() {
   const { logout, user } = useAuth();
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const isRangeFilterReady = isRangeReady(startDate, endDate);
+  const isRangeFilterValid = isRangeValid(startDate, endDate);
+  const rangeError = filterMode === 'range' && isRangeFilterReady && !isRangeFilterValid
+    ? 'A data inicial precisa ser anterior ou igual à data final.'
+    : '';
+  const queryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+
+  const refreshTransactions = async () => {
+    if (filterMode === 'range' && (!isRangeFilterReady || !isRangeFilterValid)) {
+      setTransactions([]);
+      return;
+    }
+
+    const response = await api.get(`/api/transactions?${queryString}`);
+    setTransactions(response.data);
+  };
 
   useEffect(() => {
     const fetchTransactions = async () => {
+      if (filterMode === 'range' && !isRangeFilterReady) {
+        setTransactions([]);
+        setIsPeriodLoading(false);
+        return;
+      }
+
+      if (filterMode === 'range' && !isRangeFilterValid) {
+        setTransactions([]);
+        setIsPeriodLoading(false);
+        return;
+      }
+
+      setIsPeriodLoading(true);
       try {
-        const response = await api.get(`/api/transactions?year=${selectedYear}&month=${selectedMonth}`);
+        const response = await api.get(`/api/transactions?${queryString}`);
         setTransactions(response.data);
       } catch (error) {
         console.error("Erro ao buscar transações:", error);
@@ -72,16 +90,13 @@ function DashboardPage() {
           await logout();
           navigate('/login');
         }
+      } finally {
+        setIsPeriodLoading(false);
       }
     };
 
     fetchTransactions();
-  }, [logout, navigate, selectedMonth, selectedYear]);
-
-  const refreshTransactions = async () => {
-    const response = await api.get(`/api/transactions?year=${selectedYear}&month=${selectedMonth}`);
-    setTransactions(response.data);
-  };
+  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, navigate, queryString, selectedMonth, selectedYear, startDate]);
 
   const addTransaction = async (e) => {
     e.preventDefault();
@@ -93,7 +108,7 @@ function DashboardPage() {
       setDescription('');
       setAmount('');
       setCategory(categories[0]);
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(formatDateInput(new Date()));
     } catch (error) {
       console.error("Erro ao adicionar transação:", error);
     } finally {
@@ -121,20 +136,53 @@ function DashboardPage() {
   };
 
   const handleFilterChange = (year, month) => {
-    setSelectedYear(parseInt(year));
-    setSelectedMonth(parseInt(month));
+    setSelectedYear(parseInt(year, 10));
+    setSelectedMonth(parseInt(month, 10));
   };
 
   const clearFilters = () => {
-    setSelectedYear(new Date().getFullYear());
-    setSelectedMonth(new Date().getMonth() + 1);
+    setFilterMode('month');
+    setActivePreset(null);
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonth);
+    const resetRange = getMonthDateRange(currentYear, currentMonth);
+    setStartDate(resetRange.startDate);
+    setEndDate(resetRange.endDate);
+  };
+
+  const fillExampleTransaction = () => {
+    const fallbackDate = filterMode === 'range' && startDate ? startDate : formatDateInput(new Date(selectedYear, selectedMonth - 1, 15));
+    setDescription('Ex.: mercado da semana');
+    setAmount('120');
+    setType('expense');
+    setCategory('Comida');
+    setDate(fallbackDate);
+  };
+
+  const shiftPeriod = (direction) => {
+    const period = new Date(selectedYear, selectedMonth - 1, 1);
+    period.setMonth(period.getMonth() + direction);
+    setSelectedYear(period.getFullYear());
+    setSelectedMonth(period.getMonth() + 1);
   };
   
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => ({
     value: i + 1,
     label: new Date(2000, i).toLocaleString('pt-BR', { month: 'long' })
   }));
+  const rangePresets = [
+    { value: 'last7Days', label: 'Últimos 7 dias' },
+    { value: 'last30Days', label: 'Últimos 30 dias' },
+    { value: 'thisYear', label: 'Este ano' },
+  ];
+  const activePeriodLabel = formatPeriodLabel({
+    filterMode,
+    selectedYear,
+    selectedMonth,
+    startDate,
+    endDate,
+  });
+  const periodDescriptor = filterMode === 'range' ? `no intervalo de ${activePeriodLabel}` : `em ${activePeriodLabel}`;
 
   const handleOpenEditModal = (transaction) => {
     setEditingTransaction(transaction);
@@ -159,13 +207,10 @@ function DashboardPage() {
   const totalIncome = transactions.reduce((acc, t) => (t.type === 'income' ? acc + t.amount : acc), 0);
   const totalExpense = transactions.reduce((acc, t) => (t.type === 'expense' ? acc + t.amount : acc), 0);
   const balance = totalIncome + totalExpense;
-  const hasTransactions = transactions.length > 0;
-  const displayTransactions = hasTransactions ? transactions : previewTransactions;
-  const previewIncome = previewTransactions.filter((item) => item.amount > 0).reduce((sum, item) => sum + item.amount, 0);
-  const previewExpense = previewTransactions.filter((item) => item.amount < 0).reduce((sum, item) => sum + item.amount, 0);
-  const displayIncome = hasTransactions ? totalIncome : previewIncome;
-  const displayExpense = hasTransactions ? totalExpense : previewExpense;
-  const displayBalance = hasTransactions ? balance : previewIncome + previewExpense;
+  const displayTransactions = transactions;
+  const displayIncome = totalIncome;
+  const displayExpense = totalExpense;
+  const displayBalance = balance;
 
   return (
     <>
@@ -179,25 +224,60 @@ function DashboardPage() {
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
               Um espaço limpo para acompanhar seus movimentos, manter consistência e tomar decisões financeiras com mais confiança.
             </p>
+            <p className="mt-4 inline-flex rounded-full border border-sky-300/15 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-100">
+              Exibindo: {activePeriodLabel}
+            </p>
 
-            <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center">
-              <div className="flex flex-wrap gap-3">
-                <select value={selectedMonth} onChange={(e) => handleFilterChange(selectedYear, e.target.value)} className="input-shell min-w-[180px]">
-                  {months.map(m => <option key={m.value} value={m.value}>{m.label.charAt(0).toUpperCase() + m.label.slice(1)}</option>)}
-                </select>
-                <select value={selectedYear} onChange={(e) => handleFilterChange(e.target.value, selectedMonth)} className="input-shell min-w-[140px]">
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <button onClick={clearFilters} className="secondary-button text-sm">
-                Voltar para o mês atual
-              </button>
-            </div>
+            <PeriodNavigator
+              filterMode={filterMode}
+              onModeChange={(nextMode) => {
+                setFilterMode(nextMode);
+                setActivePreset(null);
+                if (nextMode === 'range') {
+                  const selectedRange = getMonthDateRange(selectedYear, selectedMonth);
+                  setStartDate(selectedRange.startDate);
+                  setEndDate(selectedRange.endDate);
+                }
+              }}
+              months={months}
+              selectedMonth={selectedMonth}
+              selectedYear={selectedYear}
+              onMonthChange={(month) => handleFilterChange(selectedYear, month)}
+              onYearChange={(year) => handleFilterChange(year, selectedMonth)}
+              onPrevious={() => shiftPeriod(-1)}
+              onNext={() => shiftPeriod(1)}
+              onReset={clearFilters}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={(value) => {
+                setActivePreset(null);
+                setStartDate(value);
+              }}
+              onEndDateChange={(value) => {
+                setActivePreset(null);
+                setEndDate(value);
+              }}
+              presets={rangePresets}
+              activePreset={activePreset}
+              onPresetSelect={(preset) => {
+                const range = getPresetDateRange(preset, new Date());
+
+                if (!range) {
+                  return;
+                }
+
+                setFilterMode('range');
+                setActivePreset(preset);
+                setStartDate(range.startDate);
+                setEndDate(range.endDate);
+              }}
+              rangeError={rangeError}
+            />
           </div>
 
           <div className="glass-card section-reveal elevated-hover p-6">
             <span className="soft-label">Ritmo do mês</span>
-            <div className="mt-6 space-y-5">
+            <div className={`mt-6 space-y-5 transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <div>
                   <p className="text-sm text-slate-400">Receitas</p>
@@ -223,15 +303,15 @@ function DashboardPage() {
         </section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="metric-card section-reveal elevated-hover">
+          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
             <p className="soft-label">Receitas</p>
             <p className="metric-value text-emerald-300">{currencyFormatter.format(displayIncome)}</p>
           </div>
-          <div className="metric-card section-reveal elevated-hover">
+          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
             <p className="soft-label">Despesas</p>
             <p className="metric-value text-rose-300">{currencyFormatter.format(Math.abs(displayExpense))}</p>
           </div>
-          <div className="metric-card section-reveal elevated-hover">
+          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
             <p className="soft-label">Saldo</p>
             <p className={`metric-value ${displayBalance >= 0 ? 'text-sky-200' : 'text-rose-300'}`}>
               {currencyFormatter.format(displayBalance)}
@@ -243,6 +323,7 @@ function DashboardPage() {
           <div className="glass-panel section-reveal p-6 md:p-8">
             <span className="soft-label">Novo lançamento</span>
             <h3 className="mt-3 text-3xl font-bold text-slate-50">Adicionar transação</h3>
+            <p className="mt-2 text-sm text-slate-400">O filtro atual está {periodDescriptor}. Escolha a data do lançamento abaixo para registrar a movimentação corretamente.</p>
             <form onSubmit={addTransaction} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Descrição</label>
@@ -283,19 +364,22 @@ function DashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <span className="soft-label">Histórico</span>
-                <h3 className="mt-3 text-3xl font-bold text-slate-50">Movimentações do período</h3>
+                <h3 className="mt-3 text-3xl font-bold text-slate-50">Movimentações de {activePeriodLabel}</h3>
               </div>
-              <p className="text-sm text-slate-400">Ordenado das mais recentes para as mais antigas.</p>
+              <p className="text-sm text-slate-400">
+                {rangeError ? rangeError : isPeriodLoading ? `Atualizando ${activePeriodLabel}...` : 'Ordenado das mais recentes para as mais antigas.'}
+              </p>
             </div>
 
             <div className="mt-6 space-y-3">
-              {!hasTransactions && (
-                <div className="rounded-2xl border border-sky-300/15 bg-sky-300/10 px-4 py-3 text-sm text-sky-100">
-                  Prévia visual com dados fictícios para mostrar como o painel ficará quando você começar a usar o sistema.
-                </div>
+              {isPeriodLoading && !rangeError && (
+                <>
+                  <PeriodLoadingCard lines={1} className="!p-4" />
+                  <PeriodLoadingCard lines={1} className="!p-4" />
+                </>
               )}
 
-              {displayTransactions.length > 0 ? (
+              {!rangeError && !isPeriodLoading && displayTransactions.length > 0 ? (
                 displayTransactions.map(t => (
                   <div key={t._id} className="glass-card elevated-hover flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex-grow">
@@ -316,11 +400,34 @@ function DashboardPage() {
                     </div>
                   </div>
                 ))
-              ) : (
-                <div className="glass-card flex min-h-[220px] items-center justify-center p-6 text-center text-slate-400">
-                  Nenhuma transação encontrada para este mês.
+              ) : !rangeError && !isPeriodLoading ? (
+                <div className="glass-card flex min-h-[260px] flex-col items-center justify-center p-6 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-300/12 text-sky-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 10v-1m-7-4h14" />
+                    </svg>
+                  </div>
+                  <h4 className="mt-5 text-2xl font-bold text-slate-50">Nenhuma transação {periodDescriptor}</h4>
+                  <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
+                    Comece registrando sua primeira movimentação para ver o resumo financeiro e o histórico deste período.
+                  </p>
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <button type="button" onClick={fillExampleTransaction} className="primary-button">
+                      Preencher exemplo no formulário
+                    </button>
+                    <button type="button" onClick={clearFilters} className="secondary-button">
+                      Voltar para o mês atual
+                    </button>
+                  </div>
                 </div>
-              )}
+              ) : rangeError ? (
+                <div className="glass-card flex min-h-[220px] flex-col items-center justify-center p-6 text-center">
+                  <h4 className="text-2xl font-bold text-slate-50">Ajuste o intervalo para continuar</h4>
+                  <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
+                    Escolha uma data inicial anterior ou igual à data final para carregar as transações desse recorte.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
