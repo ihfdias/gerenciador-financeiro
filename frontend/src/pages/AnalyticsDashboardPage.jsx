@@ -6,8 +6,10 @@ import PeriodNavigator from '../components/PeriodNavigator';
 import PeriodLoadingCard from '../components/PeriodLoadingCard';
 import {
   buildPeriodQuery,
+  getComparisonLabel,
   formatPeriodLabel,
   getMonthDateRange,
+  getPreviousPeriodParams,
   getPresetDateRange,
   isRangeReady,
   isRangeValid,
@@ -21,6 +23,7 @@ function AnalyticsDashboardPage() {
   const currentMonth = now.getMonth() + 1;
   const currentMonthRange = getMonthDateRange(currentYear, currentMonth);
   const [summaryData, setSummaryData] = useState([]);
+  const [previousSummaryData, setPreviousSummaryData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterMode, setFilterMode] = useState('month');
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -36,38 +39,54 @@ function AnalyticsDashboardPage() {
     ? 'A data inicial precisa ser anterior ou igual à data final.'
     : '';
   const queryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const previousPeriodParams = getPreviousPeriodParams({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const previousQueryString = buildPeriodQuery({
+    filterMode: previousPeriodParams.filterMode,
+    selectedYear: previousPeriodParams.selectedYear,
+    selectedMonth: previousPeriodParams.selectedMonth,
+    startDate: previousPeriodParams.startDate,
+    endDate: previousPeriodParams.endDate,
+  });
+  const previousPeriodLabel = getComparisonLabel(previousPeriodParams);
 
   useEffect(() => {
     const fetchSummaryData = async () => {
       if (filterMode === 'range' && !isRangeFilterReady) {
         setSummaryData([]);
+        setPreviousSummaryData([]);
         setIsLoading(false);
         return;
       }
 
       if (filterMode === 'range' && !isRangeFilterValid) {
         setSummaryData([]);
+        setPreviousSummaryData([]);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        const response = await api.get(`/api/reports/summary-by-category?${queryString}`);
-        setSummaryData(response.data);
+        const [currentResponse, previousResponse] = await Promise.all([
+          api.get(`/api/reports/summary-by-category?${queryString}`),
+          api.get(`/api/reports/summary-by-category?${previousQueryString}`),
+        ]);
+        setSummaryData(currentResponse.data);
+        setPreviousSummaryData(previousResponse.data);
       } catch (error) {
         console.error("Erro ao buscar dados do resumo:", error);
         if (error.response?.status === 401) {
           await logout();
         }
         setSummaryData([]);
+        setPreviousSummaryData([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchSummaryData();
-  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, queryString, selectedMonth, selectedYear, startDate]);
+  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, previousQueryString, queryString, selectedMonth, selectedYear, startDate]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -95,7 +114,15 @@ function AnalyticsDashboardPage() {
     endDate,
   });
   const displaySummaryData = summaryData;
+  const totalCurrentExpenses = displaySummaryData.reduce((sum, item) => sum + item.value, 0);
+  const totalPreviousExpenses = previousSummaryData.reduce((sum, item) => sum + item.value, 0);
+  const leadingCategory = displaySummaryData[0];
+  const previousLeadingCategory = previousSummaryData[0];
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const totalDifference = totalCurrentExpenses - totalPreviousExpenses;
+  const totalDifferenceLabel = totalDifference === 0
+    ? 'Sem mudança no total de despesas'
+    : `${currencyFormatter.format(Math.abs(totalDifference))} ${totalDifference > 0 ? 'a mais' : 'a menos'}`;
   const shiftPeriod = (direction) => {
     const period = new Date(selectedYear, selectedMonth - 1, 1);
     period.setMonth(period.getMonth() + direction);
@@ -178,6 +205,22 @@ function AnalyticsDashboardPage() {
           <span className="soft-label">Leitura rápida</span>
           <h3 className="mt-3 text-2xl font-bold text-slate-50">Categorias de {activePeriodLabel}</h3>
           <div className="mt-6 space-y-4">
+            {!isLoading && !rangeError ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-400">Comparativo com {previousPeriodLabel}</p>
+                <p className="mt-2 text-xl font-semibold text-slate-100">{currencyFormatter.format(totalCurrentExpenses)}</p>
+                <p className="mt-1 text-sm text-slate-300">
+                  Antes: <span className="font-medium text-slate-100">{currencyFormatter.format(totalPreviousExpenses)}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-400">{totalDifferenceLabel}</p>
+                <p className="mt-3 text-sm text-slate-300">
+                  Categoria líder: <span className="font-medium text-slate-100">{leadingCategory ? leadingCategory.name : 'Sem despesas'}</span>
+                </p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Antes: {previousLeadingCategory ? previousLeadingCategory.name : 'Sem despesas'}
+                </p>
+              </div>
+            ) : null}
             {isLoading && !rangeError ? (
               <PeriodLoadingCard lines={4} className="!border-transparent !bg-transparent !p-0 shadow-none" />
             ) : !rangeError && displaySummaryData.length > 0 ? displaySummaryData.slice(0, 5).map((item) => (

@@ -10,8 +10,10 @@ import { useAuth } from '../hooks/useAuth';
 import {
   buildPeriodQuery,
   formatDateInput,
+  getComparisonLabel,
   formatPeriodLabel,
   getMonthDateRange,
+  getPreviousPeriodParams,
   getPresetDateRange,
   isRangeReady,
   isRangeValid,
@@ -24,10 +26,9 @@ function DashboardPage() {
   const currentMonth = now.getMonth() + 1;
   const currentMonthRange = getMonthDateRange(currentYear, currentMonth);
   const [transactions, setTransactions] = useState([]);
+  const [previousTransactions, setPreviousTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSeedingSampleData, setIsSeedingSampleData] = useState(false);
   const [isPeriodLoading, setIsPeriodLoading] = useState(false);
-  const [sampleDataFeedback, setSampleDataFeedback] = useState(null);
   const navigate = useNavigate();
   
   const [description, setDescription] = useState('');
@@ -57,35 +58,55 @@ function DashboardPage() {
     ? 'A data inicial precisa ser anterior ou igual à data final.'
     : '';
   const queryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const previousPeriodParams = getPreviousPeriodParams({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const previousQueryString = buildPeriodQuery({
+    filterMode: previousPeriodParams.filterMode,
+    selectedYear: previousPeriodParams.selectedYear,
+    selectedMonth: previousPeriodParams.selectedMonth,
+    startDate: previousPeriodParams.startDate,
+    endDate: previousPeriodParams.endDate,
+  });
+  const previousPeriodLabel = getComparisonLabel(previousPeriodParams);
 
   const refreshTransactions = async () => {
     if (filterMode === 'range' && (!isRangeFilterReady || !isRangeFilterValid)) {
       setTransactions([]);
+      setPreviousTransactions([]);
       return;
     }
 
-    const response = await api.get(`/api/transactions?${queryString}`);
-    setTransactions(response.data);
+    const [currentResponse, previousResponse] = await Promise.all([
+      api.get(`/api/transactions?${queryString}`),
+      api.get(`/api/transactions?${previousQueryString}`),
+    ]);
+    setTransactions(currentResponse.data);
+    setPreviousTransactions(previousResponse.data);
   };
 
   useEffect(() => {
     const fetchTransactions = async () => {
       if (filterMode === 'range' && !isRangeFilterReady) {
         setTransactions([]);
+        setPreviousTransactions([]);
         setIsPeriodLoading(false);
         return;
       }
 
       if (filterMode === 'range' && !isRangeFilterValid) {
         setTransactions([]);
+        setPreviousTransactions([]);
         setIsPeriodLoading(false);
         return;
       }
 
       setIsPeriodLoading(true);
       try {
-        const response = await api.get(`/api/transactions?${queryString}`);
-        setTransactions(response.data);
+        const [currentResponse, previousResponse] = await Promise.all([
+          api.get(`/api/transactions?${queryString}`),
+          api.get(`/api/transactions?${previousQueryString}`),
+        ]);
+        setTransactions(currentResponse.data);
+        setPreviousTransactions(previousResponse.data);
       } catch (error) {
         console.error("Erro ao buscar transações:", error);
         if (error.response?.status === 401) {
@@ -98,7 +119,7 @@ function DashboardPage() {
     };
 
     fetchTransactions();
-  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, navigate, queryString, selectedMonth, selectedYear, startDate]);
+  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, navigate, previousQueryString, queryString, selectedMonth, selectedYear, startDate]);
 
   const addTransaction = async (e) => {
     e.preventDefault();
@@ -161,116 +182,6 @@ function DashboardPage() {
     setDate(fallbackDate);
   };
 
-  const createSampleTransactions = async () => {
-    const sampleEntries = [
-      {
-        description: 'Salário principal',
-        amount: 5200,
-        type: 'income',
-        category: 'Salário',
-        date: formatDateInput(new Date(currentYear, currentMonth - 1, 5)),
-      },
-      {
-        description: 'Mercado do mês',
-        amount: 480,
-        type: 'expense',
-        category: 'Comida',
-        date: formatDateInput(new Date(currentYear, currentMonth - 1, 9)),
-      },
-      {
-        description: 'Aluguel',
-        amount: 1650,
-        type: 'expense',
-        category: 'Moradia',
-        date: formatDateInput(new Date(currentYear, currentMonth - 1, 10)),
-      },
-      {
-        description: 'Freelance',
-        amount: 1250,
-        type: 'income',
-        category: 'Outros',
-        date: formatDateInput(new Date(currentYear, currentMonth - 2, 18)),
-      },
-      {
-        description: 'Aplicação mensal',
-        amount: 700,
-        type: 'expense',
-        category: 'Investimentos',
-        date: formatDateInput(new Date(currentYear, currentMonth - 2, 22)),
-      },
-      {
-        description: 'Fim de semana',
-        amount: 230,
-        type: 'expense',
-        category: 'Lazer',
-        date: formatDateInput(new Date(currentYear, currentMonth - 3, 14)),
-      },
-      {
-        description: 'Transporte por app',
-        amount: 140,
-        type: 'expense',
-        category: 'Transporte',
-        date: formatDateInput(new Date(currentYear, currentMonth - 4, 7)),
-      },
-      {
-        description: 'Consulta de rotina',
-        amount: 180,
-        type: 'expense',
-        category: 'Saúde',
-        date: formatDateInput(new Date(currentYear, currentMonth - 5, 11)),
-      },
-    ];
-
-    setIsSeedingSampleData(true);
-    setSampleDataFeedback(null);
-
-    try {
-      const sampleDates = sampleEntries.map((entry) => entry.date).sort();
-      const response = await api.get(`/api/transactions?startDate=${sampleDates[0]}&endDate=${sampleDates[sampleDates.length - 1]}`);
-      const existingTransactions = response.data;
-      const existingKeys = new Set(
-        existingTransactions.map((transaction) => {
-          const normalizedAmount = transaction.type === 'expense'
-            ? Math.abs(transaction.amount)
-            : transaction.amount;
-
-          return [
-            transaction.description,
-            normalizedAmount,
-            transaction.type,
-            transaction.category,
-            formatDateInput(new Date(transaction.date)),
-          ].join('|');
-        })
-      );
-
-      const entriesToCreate = sampleEntries.filter((entry) => {
-        const key = [entry.description, entry.amount, entry.type, entry.category, entry.date].join('|');
-        return !existingKeys.has(key);
-      });
-
-      if (entriesToCreate.length > 0) {
-        await Promise.all(entriesToCreate.map((entry) => api.post('/api/transactions', entry)));
-      }
-
-      await refreshTransactions();
-      setSampleDataFeedback({
-        tone: entriesToCreate.length > 0 ? 'success' : 'info',
-        message: entriesToCreate.length > 0
-          ? `${entriesToCreate.length} lançamentos de teste foram adicionados em meses diferentes.`
-          : 'Os lançamentos de teste já existem na sua conta. Nada foi duplicado.',
-      });
-    } catch (error) {
-      console.error('Erro ao criar dados de teste:', error);
-      setSampleDataFeedback({
-        tone: 'error',
-        message: 'Não foi possível popular os meses com dados de teste agora.',
-      });
-    } finally {
-      setIsSeedingSampleData(false);
-    }
-  };
-
   const shiftPeriod = (direction) => {
     const period = new Date(selectedYear, selectedMonth - 1, 1);
     period.setMonth(period.getMonth() + direction);
@@ -319,10 +230,44 @@ function DashboardPage() {
   const totalIncome = transactions.reduce((acc, t) => (t.type === 'income' ? acc + t.amount : acc), 0);
   const totalExpense = transactions.reduce((acc, t) => (t.type === 'expense' ? acc + t.amount : acc), 0);
   const balance = totalIncome + totalExpense;
+  const previousIncome = previousTransactions.reduce((acc, t) => (t.type === 'income' ? acc + t.amount : acc), 0);
+  const previousExpense = previousTransactions.reduce((acc, t) => (t.type === 'expense' ? acc + t.amount : acc), 0);
+  const previousBalance = previousIncome + previousExpense;
   const displayTransactions = transactions;
   const displayIncome = totalIncome;
   const displayExpense = totalExpense;
   const displayBalance = balance;
+  const comparisonMetrics = [
+    {
+      label: 'Receitas',
+      currentValue: displayIncome,
+      previousValue: previousIncome,
+      accentClass: 'text-emerald-300',
+    },
+    {
+      label: 'Despesas',
+      currentValue: Math.abs(displayExpense),
+      previousValue: Math.abs(previousExpense),
+      accentClass: 'text-rose-300',
+    },
+    {
+      label: 'Saldo',
+      currentValue: displayBalance,
+      previousValue: previousBalance,
+      accentClass: displayBalance >= 0 ? 'text-sky-200' : 'text-rose-300',
+    },
+  ];
+
+  const formatComparisonChange = (currentValue, previousValue) => {
+    const delta = currentValue - previousValue;
+
+    if (delta === 0) {
+      return 'Sem mudança';
+    }
+
+    const tone = delta > 0 ? 'mais' : 'menos';
+    return `${currencyFormatter.format(Math.abs(delta))} ${tone}`;
+  };
 
   return (
     <>
@@ -415,20 +360,16 @@ function DashboardPage() {
         </section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
-            <p className="soft-label">Receitas</p>
-            <p className="metric-value text-emerald-300">{currencyFormatter.format(displayIncome)}</p>
-          </div>
-          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
-            <p className="soft-label">Despesas</p>
-            <p className="metric-value text-rose-300">{currencyFormatter.format(Math.abs(displayExpense))}</p>
-          </div>
-          <div className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
-            <p className="soft-label">Saldo</p>
-            <p className={`metric-value ${displayBalance >= 0 ? 'text-sky-200' : 'text-rose-300'}`}>
-              {currencyFormatter.format(displayBalance)}
-            </p>
-          </div>
+          {comparisonMetrics.map((metric) => (
+            <div key={metric.label} className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
+              <p className="soft-label">{metric.label}</p>
+              <p className={`metric-value ${metric.accentClass}`}>{currencyFormatter.format(metric.currentValue)}</p>
+              <p className="mt-3 text-sm text-slate-400">
+                vs. {previousPeriodLabel}: <span className="font-medium text-slate-200">{currencyFormatter.format(metric.previousValue)}</span>
+              </p>
+              <p className="mt-1 text-sm text-slate-400">{formatComparisonChange(metric.currentValue, metric.previousValue)}</p>
+            </div>
+          ))}
         </section>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -436,37 +377,6 @@ function DashboardPage() {
             <span className="soft-label">Novo lançamento</span>
             <h3 className="mt-3 text-3xl font-bold text-slate-50">Adicionar transação</h3>
             <p className="mt-2 text-sm text-slate-400">O filtro atual está {periodDescriptor}. Escolha a data do lançamento abaixo para registrar a movimentação corretamente.</p>
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-100">Teste visual rápido</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Preencha alguns meses com lançamentos de exemplo para validar os filtros e a análise com dados reais.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={createSampleTransactions}
-                  disabled={isSeedingSampleData}
-                  className="secondary-button text-sm disabled:opacity-60"
-                >
-                  {isSeedingSampleData ? 'Criando dados...' : 'Popular meses com dados'}
-                </button>
-              </div>
-              {sampleDataFeedback ? (
-                <p
-                  className={`mt-3 text-sm ${
-                    sampleDataFeedback.tone === 'success'
-                      ? 'text-emerald-300'
-                      : sampleDataFeedback.tone === 'error'
-                        ? 'text-rose-300'
-                        : 'text-sky-200'
-                  }`}
-                >
-                  {sampleDataFeedback.message}
-                </p>
-              ) : null}
-            </div>
             <form onSubmit={addTransaction} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Descrição</label>

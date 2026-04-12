@@ -11,6 +11,10 @@ export function addDays(date, amount) {
   return nextDate;
 }
 
+export function parseDateInput(value) {
+  return new Date(`${value}T12:00:00`);
+}
+
 export function getMonthDateRange(year, month) {
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0);
@@ -61,6 +65,30 @@ export function buildPeriodQuery({ filterMode, selectedYear, selectedMonth, star
   return `year=${selectedYear}&month=${selectedMonth}`;
 }
 
+export function getPreviousPeriodParams({ filterMode, selectedYear, selectedMonth, startDate, endDate }) {
+  if (filterMode === 'range' && startDate && endDate) {
+    const currentStart = parseDateInput(startDate);
+    const currentEnd = parseDateInput(endDate);
+    const durationInDays = Math.round((currentEnd - currentStart) / 86400000) + 1;
+    const previousEnd = addDays(currentStart, -1);
+    const previousStart = addDays(previousEnd, -(durationInDays - 1));
+
+    return {
+      filterMode: 'range',
+      startDate: formatDateInput(previousStart),
+      endDate: formatDateInput(previousEnd),
+    };
+  }
+
+  const period = new Date(selectedYear, selectedMonth - 2, 1);
+
+  return {
+    filterMode: 'month',
+    selectedYear: period.getFullYear(),
+    selectedMonth: period.getMonth() + 1,
+  };
+}
+
 export function isRangeReady(startDate, endDate) {
   return Boolean(startDate && endDate);
 }
@@ -93,5 +121,16 @@ export function formatPeriodLabel({
   return new Date(selectedYear, selectedMonth - 1, 1).toLocaleString(locale, {
     month: 'long',
     year: 'numeric',
+  });
+}
+
+export function getComparisonLabel(periodParams, locale = 'pt-BR') {
+  return formatPeriodLabel({
+    filterMode: periodParams.filterMode,
+    selectedYear: periodParams.selectedYear,
+    selectedMonth: periodParams.selectedMonth,
+    startDate: periodParams.startDate,
+    endDate: periodParams.endDate,
+    locale,
   });
 }
