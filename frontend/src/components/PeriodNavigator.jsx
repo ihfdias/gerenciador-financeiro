@@ -22,8 +22,8 @@ function PeriodNavigator({
   resetLabel = 'Voltar para o mês atual',
 }) {
   return (
-    <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center">
-      <div className="flex flex-col gap-4">
+    <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="inline-flex w-fit rounded-2xl border border-white/10 bg-white/5 p-1">
           <button
             type="button"
@@ -104,7 +104,7 @@ function PeriodNavigator({
           <p className="text-sm text-rose-300">{rangeError}</p>
         ) : null}
       </div>
-      <button type="button" onClick={onReset} className="secondary-button text-sm">
+      <button type="button" onClick={onReset} className="secondary-button w-full text-sm sm:w-fit lg:self-start">
         {resetLabel}
       </button>
     </div>

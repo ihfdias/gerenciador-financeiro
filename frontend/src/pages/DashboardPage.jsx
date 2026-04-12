@@ -25,7 +25,9 @@ function DashboardPage() {
   const currentMonthRange = getMonthDateRange(currentYear, currentMonth);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSeedingSampleData, setIsSeedingSampleData] = useState(false);
   const [isPeriodLoading, setIsPeriodLoading] = useState(false);
+  const [sampleDataFeedback, setSampleDataFeedback] = useState(null);
   const navigate = useNavigate();
   
   const [description, setDescription] = useState('');
@@ -157,6 +159,116 @@ function DashboardPage() {
     setType('expense');
     setCategory('Comida');
     setDate(fallbackDate);
+  };
+
+  const createSampleTransactions = async () => {
+    const sampleEntries = [
+      {
+        description: 'Salário principal',
+        amount: 5200,
+        type: 'income',
+        category: 'Salário',
+        date: formatDateInput(new Date(currentYear, currentMonth - 1, 5)),
+      },
+      {
+        description: 'Mercado do mês',
+        amount: 480,
+        type: 'expense',
+        category: 'Comida',
+        date: formatDateInput(new Date(currentYear, currentMonth - 1, 9)),
+      },
+      {
+        description: 'Aluguel',
+        amount: 1650,
+        type: 'expense',
+        category: 'Moradia',
+        date: formatDateInput(new Date(currentYear, currentMonth - 1, 10)),
+      },
+      {
+        description: 'Freelance',
+        amount: 1250,
+        type: 'income',
+        category: 'Outros',
+        date: formatDateInput(new Date(currentYear, currentMonth - 2, 18)),
+      },
+      {
+        description: 'Aplicação mensal',
+        amount: 700,
+        type: 'expense',
+        category: 'Investimentos',
+        date: formatDateInput(new Date(currentYear, currentMonth - 2, 22)),
+      },
+      {
+        description: 'Fim de semana',
+        amount: 230,
+        type: 'expense',
+        category: 'Lazer',
+        date: formatDateInput(new Date(currentYear, currentMonth - 3, 14)),
+      },
+      {
+        description: 'Transporte por app',
+        amount: 140,
+        type: 'expense',
+        category: 'Transporte',
+        date: formatDateInput(new Date(currentYear, currentMonth - 4, 7)),
+      },
+      {
+        description: 'Consulta de rotina',
+        amount: 180,
+        type: 'expense',
+        category: 'Saúde',
+        date: formatDateInput(new Date(currentYear, currentMonth - 5, 11)),
+      },
+    ];
+
+    setIsSeedingSampleData(true);
+    setSampleDataFeedback(null);
+
+    try {
+      const sampleDates = sampleEntries.map((entry) => entry.date).sort();
+      const response = await api.get(`/api/transactions?startDate=${sampleDates[0]}&endDate=${sampleDates[sampleDates.length - 1]}`);
+      const existingTransactions = response.data;
+      const existingKeys = new Set(
+        existingTransactions.map((transaction) => {
+          const normalizedAmount = transaction.type === 'expense'
+            ? Math.abs(transaction.amount)
+            : transaction.amount;
+
+          return [
+            transaction.description,
+            normalizedAmount,
+            transaction.type,
+            transaction.category,
+            formatDateInput(new Date(transaction.date)),
+          ].join('|');
+        })
+      );
+
+      const entriesToCreate = sampleEntries.filter((entry) => {
+        const key = [entry.description, entry.amount, entry.type, entry.category, entry.date].join('|');
+        return !existingKeys.has(key);
+      });
+
+      if (entriesToCreate.length > 0) {
+        await Promise.all(entriesToCreate.map((entry) => api.post('/api/transactions', entry)));
+      }
+
+      await refreshTransactions();
+      setSampleDataFeedback({
+        tone: entriesToCreate.length > 0 ? 'success' : 'info',
+        message: entriesToCreate.length > 0
+          ? `${entriesToCreate.length} lançamentos de teste foram adicionados em meses diferentes.`
+          : 'Os lançamentos de teste já existem na sua conta. Nada foi duplicado.',
+      });
+    } catch (error) {
+      console.error('Erro ao criar dados de teste:', error);
+      setSampleDataFeedback({
+        tone: 'error',
+        message: 'Não foi possível popular os meses com dados de teste agora.',
+      });
+    } finally {
+      setIsSeedingSampleData(false);
+    }
   };
 
   const shiftPeriod = (direction) => {
@@ -324,6 +436,37 @@ function DashboardPage() {
             <span className="soft-label">Novo lançamento</span>
             <h3 className="mt-3 text-3xl font-bold text-slate-50">Adicionar transação</h3>
             <p className="mt-2 text-sm text-slate-400">O filtro atual está {periodDescriptor}. Escolha a data do lançamento abaixo para registrar a movimentação corretamente.</p>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-100">Teste visual rápido</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">
+                    Preencha alguns meses com lançamentos de exemplo para validar os filtros e a análise com dados reais.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={createSampleTransactions}
+                  disabled={isSeedingSampleData}
+                  className="secondary-button text-sm disabled:opacity-60"
+                >
+                  {isSeedingSampleData ? 'Criando dados...' : 'Popular meses com dados'}
+                </button>
+              </div>
+              {sampleDataFeedback ? (
+                <p
+                  className={`mt-3 text-sm ${
+                    sampleDataFeedback.tone === 'success'
+                      ? 'text-emerald-300'
+                      : sampleDataFeedback.tone === 'error'
+                        ? 'text-rose-300'
+                        : 'text-sky-200'
+                  }`}
+                >
+                  {sampleDataFeedback.message}
+                </p>
+              ) : null}
+            </div>
             <form onSubmit={addTransaction} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Descrição</label>
