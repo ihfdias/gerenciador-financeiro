@@ -33,8 +33,8 @@ function HistoryFiltersPanel({
           </button>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-[minmax(280px,1.5fr)_minmax(180px,0.9fr)_minmax(180px,0.95fr)_minmax(190px,1fr)]">
-          <div className="min-w-0 lg:col-span-2 2xl:col-span-2">
+        <div className="grid gap-3">
+          <div className="min-w-0">
             <label htmlFor="historySearch" className="mb-2 block text-sm font-medium text-slate-200">Buscar no histórico</label>
             <input
               id="historySearch"
@@ -45,49 +45,48 @@ function HistoryFiltersPanel({
               placeholder="Descrição ou categoria"
             />
           </div>
-          <div className="min-w-0">
-            <label htmlFor="historyTypeFilter" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
-            <select
-              id="historyTypeFilter"
-              value={historyTypeFilter}
-              onChange={(e) => onTypeChange(e.target.value)}
-              className="input-shell min-w-0"
-            >
-              <option value="all">Todos</option>
-              <option value="income">Receitas</option>
-              <option value="expense">Despesas</option>
-            </select>
-          </div>
-          <div className="min-w-0">
-            <label htmlFor="historyCategoryFilter" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
-            <select
-              id="historyCategoryFilter"
-              value={historyCategoryFilter}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              className="input-shell min-w-0"
-            >
-              <option value="all">Todas</option>
-              {categories.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-[minmax(200px,240px)_1fr]">
-          <div className="min-w-0">
-            <label htmlFor="historySortOrder" className="mb-2 block text-sm font-medium text-slate-200">Ordenar por</label>
-            <select
-              id="historySortOrder"
-              value={historySortOrder}
-              onChange={(e) => onSortChange(e.target.value)}
-              className="input-shell min-w-0"
-            >
-              <option value="date_desc">Mais recentes</option>
-              <option value="date_asc">Mais antigas</option>
-              <option value="amount_desc">Maior valor</option>
-              <option value="amount_asc">Menor valor</option>
-            </select>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0">
+              <label htmlFor="historyTypeFilter" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
+              <select
+                id="historyTypeFilter"
+                value={historyTypeFilter}
+                onChange={(e) => onTypeChange(e.target.value)}
+                className="input-shell min-w-0"
+              >
+                <option value="all">Todos</option>
+                <option value="income">Receitas</option>
+                <option value="expense">Despesas</option>
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="historyCategoryFilter" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
+              <select
+                id="historyCategoryFilter"
+                value={historyCategoryFilter}
+                onChange={(e) => onCategoryChange(e.target.value)}
+                className="input-shell min-w-0"
+              >
+                <option value="all">Todas</option>
+                {categories.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="historySortOrder" className="mb-2 block text-sm font-medium text-slate-200">Ordenar por</label>
+              <select
+                id="historySortOrder"
+                value={historySortOrder}
+                onChange={(e) => onSortChange(e.target.value)}
+                className="input-shell min-w-0"
+              >
+                <option value="date_desc">Mais recentes</option>
+                <option value="date_asc">Mais antigas</option>
+                <option value="amount_desc">Maior valor</option>
+                <option value="amount_asc">Menor valor</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
