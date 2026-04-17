@@ -33,8 +33,8 @@ function HistoryFiltersPanel({
           </button>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(280px,1.5fr)_minmax(180px,0.9fr)_minmax(180px,0.95fr)_minmax(190px,1fr)]">
-          <div className="xl:col-span-2">
+        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-[minmax(280px,1.5fr)_minmax(180px,0.9fr)_minmax(180px,0.95fr)_minmax(190px,1fr)]">
+          <div className="min-w-0 lg:col-span-2 2xl:col-span-2">
             <label htmlFor="historySearch" className="mb-2 block text-sm font-medium text-slate-200">Buscar no histórico</label>
             <input
               id="historySearch"
@@ -45,7 +45,7 @@ function HistoryFiltersPanel({
               placeholder="Descrição ou categoria"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor="historyTypeFilter" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
             <select
               id="historyTypeFilter"
@@ -58,7 +58,7 @@ function HistoryFiltersPanel({
               <option value="expense">Despesas</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor="historyCategoryFilter" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
             <select
               id="historyCategoryFilter"
@@ -74,8 +74,8 @@ function HistoryFiltersPanel({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-[minmax(180px,220px)_1fr]">
-          <div>
+        <div className="grid gap-3 md:grid-cols-[minmax(200px,240px)_1fr]">
+          <div className="min-w-0">
             <label htmlFor="historySortOrder" className="mb-2 block text-sm font-medium text-slate-200">Ordenar por</label>
             <select
               id="historySortOrder"
