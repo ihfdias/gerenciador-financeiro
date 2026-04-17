@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getCsrfToken } from './csrf';
+import { getCsrfToken, setCsrfToken } from './csrf';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -18,6 +18,14 @@ api.interceptors.request.use((config) => {
   }
 
   return config;
+});
+
+api.interceptors.response.use((response) => {
+  if (response?.data?.csrfToken) {
+    setCsrfToken(response.data.csrfToken);
+  }
+
+  return response;
 });
 
 export default api;

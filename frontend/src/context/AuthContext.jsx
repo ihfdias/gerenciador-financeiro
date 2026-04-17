@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import AuthContext from './auth-context';
+import { clearCsrfToken, setCsrfToken } from '../lib/csrf';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -9,9 +10,11 @@ export function AuthProvider({ children }) {
   const refreshAuth = async () => {
     try {
       const response = await api.get('/api/auth/me');
+      setCsrfToken(response.data.csrfToken);
       setUser(response.data.user);
       return response.data.user;
     } catch {
+      clearCsrfToken();
       setUser(null);
       return null;
     } finally {
@@ -21,6 +24,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const response = await api.post('/api/auth/login', { email, password });
+    setCsrfToken(response.data.csrfToken);
     setUser(response.data.user);
     return response.data.user;
   };
@@ -29,6 +33,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post('/api/auth/logout');
     } finally {
+      clearCsrfToken();
       setUser(null);
     }
   };
