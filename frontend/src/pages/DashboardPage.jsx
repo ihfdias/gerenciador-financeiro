@@ -512,48 +512,48 @@ function DashboardPage() {
           ))}
         </section>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="glass-panel section-reveal p-6 md:p-8">
+        <div className="mt-6 grid gap-6 2xl:grid-cols-[minmax(420px,0.92fr)_minmax(560px,1.08fr)]">
+          <div className="glass-panel section-reveal p-6 md:p-8 xl:p-9">
             <span className="soft-label">Novo lançamento</span>
             <h3 className="mt-3 text-3xl font-bold text-slate-50">Adicionar transação</h3>
-            <p className="mt-2 text-sm text-slate-400">O filtro atual está {periodDescriptor}. Escolha a data do lançamento abaixo para registrar a movimentação corretamente.</p>
-            <form onSubmit={addTransaction} className="mt-6 space-y-4">
-              <div>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
+              O filtro atual está {periodDescriptor}. Escolha a data do lançamento abaixo para registrar a movimentação corretamente.
+            </p>
+            <form onSubmit={addTransaction} className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="lg:col-span-2">
                 <label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Descrição</label>
                 <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required className="input-shell" placeholder="Ex.: mercado, salário, aluguel" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="date" className="mb-2 block text-sm font-medium text-slate-200">Data</label>
-                  <input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required className="input-shell" />
-                </div>
-                <div>
-                  <label htmlFor="category" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
-                  <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="input-shell">
-                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label htmlFor="date" className="mb-2 block text-sm font-medium text-slate-200">Data</label>
+                <input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required className="input-shell" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="amount" className="mb-2 block text-sm font-medium text-slate-200">Valor</label>
-                  <input type="number" step="0.01" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required className="input-shell" placeholder="0,00" />
-                </div>
-                <div>
-                  <label htmlFor="type" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
-                  <select id="type" value={type} onChange={(e) => setType(e.target.value)} className="input-shell">
-                    <option value="income">Receita</option>
-                    <option value="expense">Despesa</option>
-                  </select>
-                </div>
+              <div>
+                <label htmlFor="category" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
+                <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="input-shell">
+                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
               </div>
-              <button type="submit" disabled={isLoading} className="primary-button mt-2 w-full disabled:opacity-60">
+              <div>
+                <label htmlFor="amount" className="mb-2 block text-sm font-medium text-slate-200">Valor</label>
+                <input type="number" step="0.01" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required className="input-shell" placeholder="0,00" />
+              </div>
+              <div>
+                <label htmlFor="type" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
+                <select id="type" value={type} onChange={(e) => setType(e.target.value)} className="input-shell">
+                  <option value="income">Receita</option>
+                  <option value="expense">Despesa</option>
+                </select>
+              </div>
+              <div className="lg:col-span-2">
+                <button type="submit" disabled={isLoading} className="primary-button mt-2 w-full disabled:opacity-60">
                 {isLoading ? <Spinner /> : 'Adicionar ao meu mês'}
-              </button>
+                </button>
+              </div>
             </form>
           </div>
 
-          <div className="glass-panel section-reveal p-6 md:p-8">
+          <div className="glass-panel section-reveal p-6 md:p-8 xl:p-9">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <span className="soft-label">Histórico</span>
