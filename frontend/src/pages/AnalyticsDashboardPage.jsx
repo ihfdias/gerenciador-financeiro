@@ -123,6 +123,26 @@ function AnalyticsDashboardPage() {
   const totalDifferenceLabel = totalDifference === 0
     ? 'Sem mudança no total de despesas'
     : `${currencyFormatter.format(Math.abs(totalDifference))} ${totalDifference > 0 ? 'a mais' : 'a menos'}`;
+  const expenseTrend = totalDifference === 0
+    ? {
+        label: 'Estável',
+        badgeClass: 'bg-white/6 text-slate-200',
+        toneClass: 'text-slate-300',
+        icon: 'neutral',
+      }
+    : totalDifference < 0
+      ? {
+          label: 'Melhor que antes',
+          badgeClass: 'bg-emerald-300/12 text-emerald-200',
+          toneClass: 'text-emerald-300',
+          icon: 'up',
+        }
+      : {
+          label: 'Pior que antes',
+          badgeClass: 'bg-rose-300/12 text-rose-200',
+          toneClass: 'text-rose-300',
+          icon: 'down',
+        };
   const shiftPeriod = (direction) => {
     const period = new Date(selectedYear, selectedMonth - 1, 1);
     period.setMonth(period.getMonth() + direction);
@@ -207,12 +227,28 @@ function AnalyticsDashboardPage() {
           <div className="mt-6 space-y-4">
             {!isLoading && !rangeError ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-slate-400">Comparativo com {previousPeriodLabel}</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-slate-400">Comparativo com {previousPeriodLabel}</p>
+                  <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${expenseTrend.badgeClass}`}>
+                    {expenseTrend.icon === 'up' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    ) : expenseTrend.icon === 'down' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    ) : (
+                      <span className="h-2 w-2 rounded-full bg-current" />
+                    )}
+                    {expenseTrend.label}
+                  </span>
+                </div>
                 <p className="mt-2 text-xl font-semibold text-slate-100">{currencyFormatter.format(totalCurrentExpenses)}</p>
                 <p className="mt-1 text-sm text-slate-300">
                   Antes: <span className="font-medium text-slate-100">{currencyFormatter.format(totalPreviousExpenses)}</span>
                 </p>
-                <p className="mt-1 text-sm text-slate-400">{totalDifferenceLabel}</p>
+                <p className={`mt-1 text-sm font-medium ${expenseTrend.toneClass}`}>{totalDifferenceLabel}</p>
                 <p className="mt-3 text-sm text-slate-300">
                   Categoria líder: <span className="font-medium text-slate-100">{leadingCategory ? leadingCategory.name : 'Sem despesas'}</span>
                 </p>

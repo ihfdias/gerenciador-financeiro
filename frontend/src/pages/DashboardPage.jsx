@@ -43,6 +43,20 @@ function DashboardPage() {
   const [startDate, setStartDate] = useState(currentMonthRange.startDate);
   const [endDate, setEndDate] = useState(currentMonthRange.endDate);
   const [activePreset, setActivePreset] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('all');
+  const [historyCategoryFilter, setHistoryCategoryFilter] = useState('all');
+  const [historySortOrder, setHistorySortOrder] = useState('date_desc');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPagination, setHistoryPagination] = useState({
+    page: 1,
+    limit: 8,
+    totalItems: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -51,13 +65,39 @@ function DashboardPage() {
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const { logout, user } = useAuth();
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm]);
+
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const isRangeFilterReady = isRangeReady(startDate, endDate);
   const isRangeFilterValid = isRangeValid(startDate, endDate);
   const rangeError = filterMode === 'range' && isRangeFilterReady && !isRangeFilterValid
     ? 'A data inicial precisa ser anterior ou igual à data final.'
     : '';
-  const queryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const periodQueryString = buildPeriodQuery({ filterMode, selectedYear, selectedMonth, startDate, endDate });
+  const historyQueryParams = new URLSearchParams(periodQueryString);
+
+  if (debouncedSearchTerm.trim()) {
+    historyQueryParams.set('search', debouncedSearchTerm.trim());
+  }
+
+  if (historyTypeFilter !== 'all') {
+    historyQueryParams.set('type', historyTypeFilter);
+  }
+
+  if (historyCategoryFilter !== 'all') {
+    historyQueryParams.set('category', historyCategoryFilter);
+  }
+
+  historyQueryParams.set('sort', historySortOrder);
+  historyQueryParams.set('page', String(historyPage));
+  historyQueryParams.set('limit', String(historyPagination.limit));
+  const historyQueryString = historyQueryParams.toString();
   const previousPeriodParams = getPreviousPeriodParams({ filterMode, selectedYear, selectedMonth, startDate, endDate });
   const previousQueryString = buildPeriodQuery({
     filterMode: previousPeriodParams.filterMode,
@@ -72,14 +112,23 @@ function DashboardPage() {
     if (filterMode === 'range' && (!isRangeFilterReady || !isRangeFilterValid)) {
       setTransactions([]);
       setPreviousTransactions([]);
+      setHistoryPagination((current) => ({
+        ...current,
+        page: 1,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      }));
       return;
     }
 
     const [currentResponse, previousResponse] = await Promise.all([
-      api.get(`/api/transactions?${queryString}`),
+      api.get(`/api/transactions?${historyQueryString}`),
       api.get(`/api/transactions?${previousQueryString}`),
     ]);
-    setTransactions(currentResponse.data);
+    setTransactions(currentResponse.data.items);
+    setHistoryPagination(currentResponse.data.pagination);
     setPreviousTransactions(previousResponse.data);
   };
 
@@ -88,6 +137,14 @@ function DashboardPage() {
       if (filterMode === 'range' && !isRangeFilterReady) {
         setTransactions([]);
         setPreviousTransactions([]);
+        setHistoryPagination((current) => ({
+          ...current,
+          page: 1,
+          totalItems: 0,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }));
         setIsPeriodLoading(false);
         return;
       }
@@ -95,6 +152,14 @@ function DashboardPage() {
       if (filterMode === 'range' && !isRangeFilterValid) {
         setTransactions([]);
         setPreviousTransactions([]);
+        setHistoryPagination((current) => ({
+          ...current,
+          page: 1,
+          totalItems: 0,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }));
         setIsPeriodLoading(false);
         return;
       }
@@ -102,10 +167,11 @@ function DashboardPage() {
       setIsPeriodLoading(true);
       try {
         const [currentResponse, previousResponse] = await Promise.all([
-          api.get(`/api/transactions?${queryString}`),
+          api.get(`/api/transactions?${historyQueryString}`),
           api.get(`/api/transactions?${previousQueryString}`),
         ]);
-        setTransactions(currentResponse.data);
+        setTransactions(currentResponse.data.items);
+        setHistoryPagination(currentResponse.data.pagination);
         setPreviousTransactions(previousResponse.data);
       } catch (error) {
         console.error("Erro ao buscar transações:", error);
@@ -119,7 +185,7 @@ function DashboardPage() {
     };
 
     fetchTransactions();
-  }, [endDate, filterMode, isRangeFilterReady, isRangeFilterValid, logout, navigate, previousQueryString, queryString, selectedMonth, selectedYear, startDate]);
+  }, [debouncedSearchTerm, endDate, filterMode, historyCategoryFilter, historyPage, historyQueryString, historySortOrder, historyTypeFilter, isRangeFilterReady, isRangeFilterValid, logout, navigate, previousQueryString, selectedMonth, selectedYear, startDate]);
 
   const addTransaction = async (e) => {
     e.preventDefault();
@@ -159,6 +225,7 @@ function DashboardPage() {
   };
 
   const handleFilterChange = (year, month) => {
+    setHistoryPage(1);
     setSelectedYear(parseInt(year, 10));
     setSelectedMonth(parseInt(month, 10));
   };
@@ -166,11 +233,20 @@ function DashboardPage() {
   const clearFilters = () => {
     setFilterMode('month');
     setActivePreset(null);
+    setHistoryPage(1);
     setSelectedYear(currentYear);
     setSelectedMonth(currentMonth);
     const resetRange = getMonthDateRange(currentYear, currentMonth);
     setStartDate(resetRange.startDate);
     setEndDate(resetRange.endDate);
+  };
+
+  const clearHistoryFilters = () => {
+    setSearchTerm('');
+    setHistoryTypeFilter('all');
+    setHistoryCategoryFilter('all');
+    setHistorySortOrder('date_desc');
+    setHistoryPage(1);
   };
 
   const fillExampleTransaction = () => {
@@ -237,6 +313,14 @@ function DashboardPage() {
   const displayIncome = totalIncome;
   const displayExpense = totalExpense;
   const displayBalance = balance;
+  const sortedTransactions = displayTransactions;
+  const hasActiveHistoryFilters = Boolean(searchTerm.trim()) || historyTypeFilter !== 'all' || historyCategoryFilter !== 'all';
+  const sortOrderLabelMap = {
+    date_desc: 'mais recentes primeiro',
+    date_asc: 'mais antigas primeiro',
+    amount_desc: 'maiores valores primeiro',
+    amount_asc: 'menores valores primeiro',
+  };
   const comparisonMetrics = [
     {
       label: 'Receitas',
@@ -269,6 +353,32 @@ function DashboardPage() {
     return `${currencyFormatter.format(Math.abs(delta))} ${tone}`;
   };
 
+  const getComparisonTrend = (currentValue, previousValue, { invert = false } = {}) => {
+    const delta = currentValue - previousValue;
+
+    if (delta === 0) {
+      return {
+        label: 'Estável',
+        value: 'Sem mudança',
+        toneClass: 'text-slate-300',
+        badgeClass: 'bg-white/6 text-slate-200',
+        icon: 'neutral',
+      };
+    }
+
+    const isPositiveTrend = invert ? delta < 0 : delta > 0;
+
+    return {
+      label: isPositiveTrend ? 'Melhor que antes' : 'Pior que antes',
+      value: formatComparisonChange(currentValue, previousValue),
+      toneClass: isPositiveTrend ? 'text-emerald-300' : 'text-rose-300',
+      badgeClass: isPositiveTrend ? 'bg-emerald-300/12 text-emerald-200' : 'bg-rose-300/12 text-rose-200',
+      icon: isPositiveTrend ? 'up' : 'down',
+    };
+  };
+  const pageIncome = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'income' ? sum + transaction.amount : sum), 0);
+  const pageExpense = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'expense' ? sum + Math.abs(transaction.amount) : sum), 0);
+
   return (
     <>
       <main className="page-container">
@@ -290,6 +400,7 @@ function DashboardPage() {
               onModeChange={(nextMode) => {
                 setFilterMode(nextMode);
                 setActivePreset(null);
+                setHistoryPage(1);
                 if (nextMode === 'range') {
                   const selectedRange = getMonthDateRange(selectedYear, selectedMonth);
                   setStartDate(selectedRange.startDate);
@@ -308,10 +419,12 @@ function DashboardPage() {
               endDate={endDate}
               onStartDateChange={(value) => {
                 setActivePreset(null);
+                setHistoryPage(1);
                 setStartDate(value);
               }}
               onEndDateChange={(value) => {
                 setActivePreset(null);
+                setHistoryPage(1);
                 setEndDate(value);
               }}
               presets={rangePresets}
@@ -325,6 +438,7 @@ function DashboardPage() {
 
                 setFilterMode('range');
                 setActivePreset(preset);
+                setHistoryPage(1);
                 setStartDate(range.startDate);
                 setEndDate(range.endDate);
               }}
@@ -361,14 +475,38 @@ function DashboardPage() {
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
           {comparisonMetrics.map((metric) => (
-            <div key={metric.label} className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
-              <p className="soft-label">{metric.label}</p>
-              <p className={`metric-value ${metric.accentClass}`}>{currencyFormatter.format(metric.currentValue)}</p>
-              <p className="mt-3 text-sm text-slate-400">
-                vs. {previousPeriodLabel}: <span className="font-medium text-slate-200">{currencyFormatter.format(metric.previousValue)}</span>
-              </p>
-              <p className="mt-1 text-sm text-slate-400">{formatComparisonChange(metric.currentValue, metric.previousValue)}</p>
-            </div>
+            (() => {
+              const trend = getComparisonTrend(metric.currentValue, metric.previousValue, {
+                invert: metric.label === 'Despesas',
+              });
+
+              return (
+                <div key={metric.label} className={`metric-card section-reveal elevated-hover transition-opacity ${isPeriodLoading ? 'opacity-70' : 'opacity-100'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="soft-label">{metric.label}</p>
+                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${trend.badgeClass}`}>
+                      {trend.icon === 'up' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                        </svg>
+                      ) : trend.icon === 'down' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      ) : (
+                        <span className="h-2 w-2 rounded-full bg-current" />
+                      )}
+                      {trend.label}
+                    </span>
+                  </div>
+                  <p className={`metric-value ${metric.accentClass}`}>{currencyFormatter.format(metric.currentValue)}</p>
+                  <p className="mt-3 text-sm text-slate-400">
+                    vs. {previousPeriodLabel}: <span className="font-medium text-slate-200">{currencyFormatter.format(metric.previousValue)}</span>
+                  </p>
+                  <p className={`mt-1 text-sm font-medium ${trend.toneClass}`}>{trend.value}</p>
+                </div>
+              );
+            })()
           ))}
         </section>
 
@@ -420,11 +558,98 @@ function DashboardPage() {
                 <h3 className="mt-3 text-3xl font-bold text-slate-50">Movimentações de {activePeriodLabel}</h3>
               </div>
               <p className="text-sm text-slate-400">
-                {rangeError ? rangeError : isPeriodLoading ? `Atualizando ${activePeriodLabel}...` : 'Ordenado das mais recentes para as mais antigas.'}
+                {rangeError ? rangeError : isPeriodLoading ? `Atualizando ${activePeriodLabel}...` : `Ordenado por ${sortOrderLabelMap[historySortOrder]}.`}
               </p>
             </div>
 
             <div className="mt-6 space-y-3">
+              {!rangeError && (
+                <div className="glass-card p-4">
+                  <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.85fr_auto]">
+                    <div>
+                      <label htmlFor="historySearch" className="mb-2 block text-sm font-medium text-slate-200">Buscar no histórico</label>
+                      <input
+                        id="historySearch"
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setHistoryPage(1);
+                          setSearchTerm(e.target.value);
+                        }}
+                        className="input-shell"
+                        placeholder="Descrição ou categoria"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="historyTypeFilter" className="mb-2 block text-sm font-medium text-slate-200">Tipo</label>
+                      <select
+                        id="historyTypeFilter"
+                        value={historyTypeFilter}
+                        onChange={(e) => {
+                          setHistoryPage(1);
+                          setHistoryTypeFilter(e.target.value);
+                        }}
+                        className="input-shell"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="income">Receitas</option>
+                        <option value="expense">Despesas</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="historyCategoryFilter" className="mb-2 block text-sm font-medium text-slate-200">Categoria</label>
+                      <select
+                        id="historyCategoryFilter"
+                        value={historyCategoryFilter}
+                        onChange={(e) => {
+                          setHistoryPage(1);
+                          setHistoryCategoryFilter(e.target.value);
+                        }}
+                        className="input-shell"
+                      >
+                        <option value="all">Todas</option>
+                        {categories.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="historySortOrder" className="mb-2 block text-sm font-medium text-slate-200">Ordenar por</label>
+                      <select
+                        id="historySortOrder"
+                        value={historySortOrder}
+                        onChange={(e) => {
+                          setHistoryPage(1);
+                          setHistorySortOrder(e.target.value);
+                        }}
+                        className="input-shell"
+                      >
+                        <option value="date_desc">Mais recentes</option>
+                        <option value="date_asc">Mais antigas</option>
+                        <option value="amount_desc">Maior valor</option>
+                        <option value="amount_asc">Menor valor</option>
+                      </select>
+                    </div>
+                    <div className="md:self-end">
+                      <button type="button" onClick={clearHistoryFilters} className="secondary-button w-full text-sm md:w-auto">
+                        Limpar
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
+                    <p>
+                      {searchTerm !== debouncedSearchTerm
+                        ? 'Atualizando busca...'
+                        : `Mostrando ${sortedTransactions.length} item(ns) nesta página de ${historyPagination.totalItems} resultado(s).`}
+                    </p>
+                    <p className="flex flex-wrap gap-4">
+                      <span>Receitas na página: <span className="font-medium text-emerald-300">{currencyFormatter.format(pageIncome)}</span></span>
+                      <span>Despesas na página: <span className="font-medium text-rose-300">{currencyFormatter.format(pageExpense)}</span></span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {isPeriodLoading && !rangeError && (
                 <>
                   <PeriodLoadingCard lines={1} className="!p-4" />
@@ -432,27 +657,56 @@ function DashboardPage() {
                 </>
               )}
 
-              {!rangeError && !isPeriodLoading && displayTransactions.length > 0 ? (
-                displayTransactions.map(t => (
-                  <div key={t._id} className="glass-card elevated-hover flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
-                    <div className="flex-grow">
-                      <span className="inline-flex rounded-full bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">{t.category}</span>
-                      <span className="mt-3 block text-base font-semibold text-slate-100 md:text-lg">{t.description}</span>
-                      <span className="mt-1 block text-sm text-slate-400">{new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</span>
+              {!rangeError && !isPeriodLoading && sortedTransactions.length > 0 ? (
+                <>
+                  {sortedTransactions.map(t => (
+                    <div key={t._id} className="glass-card elevated-hover flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+                      <div className="flex-grow">
+                        <span className="inline-flex rounded-full bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">{t.category}</span>
+                        <span className="mt-3 block text-base font-semibold text-slate-100 md:text-lg">{t.description}</span>
+                        <span className="mt-1 block text-sm text-slate-400">{new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 md:justify-end">
+                        <span className={`text-base font-bold md:text-lg ${t.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{currencyFormatter.format(t.amount)}</span>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleOpenEditModal(t)} className="rounded-2xl bg-white/6 p-2 text-slate-300 transition hover:bg-sky-300/10 hover:text-sky-200" aria-label="Editar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z" /></svg>
+                          </button>
+                          <button onClick={() => handleOpenDeleteModal(t._id)} className="rounded-2xl bg-white/6 p-2 text-slate-300 transition hover:bg-rose-300/10 hover:text-rose-200" aria-label="Deletar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-4 md:justify-end">
-                      <span className={`text-base font-bold md:text-lg ${t.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{currencyFormatter.format(t.amount)}</span>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleOpenEditModal(t)} className="rounded-2xl bg-white/6 p-2 text-slate-300 transition hover:bg-sky-300/10 hover:text-sky-200" aria-label="Editar">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z" /></svg>
+                  ))}
+                  {historyPagination.totalPages > 1 ? (
+                    <div className="glass-card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-400">
+                        Página <span className="font-medium text-slate-100">{historyPagination.page}</span> de{' '}
+                        <span className="font-medium text-slate-100">{historyPagination.totalPages}</span>
+                        {' '}com <span className="font-medium text-slate-100">{historyPagination.totalItems}</span> lançamentos.
+                      </p>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
+                          disabled={!historyPagination.hasPreviousPage}
+                          className="secondary-button text-sm disabled:opacity-50"
+                        >
+                          Página anterior
                         </button>
-                        <button onClick={() => handleOpenDeleteModal(t._id)} className="rounded-2xl bg-white/6 p-2 text-slate-300 transition hover:bg-rose-300/10 hover:text-rose-200" aria-label="Deletar">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((current) => current + 1)}
+                          disabled={!historyPagination.hasNextPage}
+                          className="secondary-button text-sm disabled:opacity-50"
+                        >
+                          Próxima página
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ) : null}
+                </>
               ) : !rangeError && !isPeriodLoading ? (
                 <div className="glass-card flex min-h-[260px] flex-col items-center justify-center p-6 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-300/12 text-sky-200">
@@ -460,18 +714,34 @@ function DashboardPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 10v-1m-7-4h14" />
                     </svg>
                   </div>
-                  <h4 className="mt-5 text-2xl font-bold text-slate-50">Nenhuma transação {periodDescriptor}</h4>
-                  <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
-                    Comece registrando sua primeira movimentação para ver o resumo financeiro e o histórico deste período.
-                  </p>
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <button type="button" onClick={fillExampleTransaction} className="primary-button">
-                      Preencher exemplo no formulário
-                    </button>
-                    <button type="button" onClick={clearFilters} className="secondary-button">
-                      Voltar para o mês atual
-                    </button>
-                  </div>
+                  {hasActiveHistoryFilters && displayTransactions.length > 0 ? (
+                    <>
+                      <h4 className="mt-5 text-2xl font-bold text-slate-50">Nenhum resultado para os filtros atuais</h4>
+                      <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
+                        Tente mudar a busca, o tipo ou a categoria para encontrar a movimentação que você procura.
+                      </p>
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <button type="button" onClick={clearHistoryFilters} className="primary-button">
+                          Limpar filtros do histórico
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h4 className="mt-5 text-2xl font-bold text-slate-50">Nenhuma transação {periodDescriptor}</h4>
+                      <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">
+                        Comece registrando sua primeira movimentação para ver o resumo financeiro e o histórico deste período.
+                      </p>
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <button type="button" onClick={fillExampleTransaction} className="primary-button">
+                          Preencher exemplo no formulário
+                        </button>
+                        <button type="button" onClick={clearFilters} className="secondary-button">
+                          Voltar para o mês atual
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : rangeError ? (
                 <div className="glass-card flex min-h-[220px] flex-col items-center justify-center p-6 text-center">

@@ -65,12 +65,22 @@ function normalizeTransactionPayload(input, { partial = false } = {}) {
   return { payload, errors };
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 router.get('/', auth, async (req, res) => {
   try {
     const query = { user: req.user.id };
     const year = parsePositiveInteger(req.query.year);
     const month = parsePositiveInteger(req.query.month);
     const { startDate: startDateParam, endDate: endDateParam } = req.query;
+    const search = sanitizeString(req.query.search);
+    const type = sanitizeString(req.query.type);
+    const category = sanitizeString(req.query.category);
+    const sort = sanitizeString(req.query.sort);
+    const page = parsePositiveInteger(req.query.page);
+    const limit = parsePositiveInteger(req.query.limit);
 
     if ((req.query.year && !year) || (req.query.month && (!month || month > 12))) {
       return res.status(400).json({ msg: 'Filtro de data inválido.' });
@@ -93,8 +103,62 @@ router.get('/', auth, async (req, res) => {
       query.date = { $gte: startDate, $lt: endDate };
     }
 
-    const transactions = await Transaction.find(query).sort({ date: -1 });
-    res.json(transactions);
+    if (search) {
+      query.$or = [
+        { description: { $regex: escapeRegex(search), $options: 'i' } },
+        { category: { $regex: escapeRegex(search), $options: 'i' } },
+      ];
+    }
+
+    if (type) {
+      if (!['income', 'expense'].includes(type)) {
+        return res.status(400).json({ msg: 'Tipo de transação inválido.' });
+      }
+
+      query.type = type;
+    }
+
+    if (category) {
+      query.category = category;
+    }
+
+    const sortMap = {
+      date_desc: { date: -1, createdAt: -1 },
+      date_asc: { date: 1, createdAt: 1 },
+      amount_desc: { amount: -1, date: -1 },
+      amount_asc: { amount: 1, date: -1 },
+    };
+    const sortQuery = sortMap[sort] || sortMap.date_desc;
+
+    if ((req.query.page && !page) || (req.query.limit && (!limit || limit > 100))) {
+      return res.status(400).json({ msg: 'Paginação inválida.' });
+    }
+
+    if (page || limit) {
+      const currentPage = page || 1;
+      const perPage = limit || 10;
+      const skip = (currentPage - 1) * perPage;
+
+      const [transactions, totalItems] = await Promise.all([
+        Transaction.find(query).sort(sortQuery).skip(skip).limit(perPage),
+        Transaction.countDocuments(query),
+      ]);
+
+      return res.json({
+        items: transactions,
+        pagination: {
+          page: currentPage,
+          limit: perPage,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / perPage)),
+          hasNextPage: skip + transactions.length < totalItems,
+          hasPreviousPage: currentPage > 1,
+        },
+      });
+    }
+
+    const transactions = await Transaction.find(query).sort(sortQuery);
+    return res.json(transactions);
   } catch (err) {
     res.status(500).json({ msg: 'Erro no servidor.' });
   }
