@@ -104,6 +104,9 @@ router.get('/', auth, async (req, res) => {
     }
 
     if (search) {
+      if (search.length > 100) {
+        return res.status(400).json({ msg: 'Termo de busca muito longo.' });
+      }
       query.$or = [
         { description: { $regex: escapeRegex(search), $options: 'i' } },
         { category: { $regex: escapeRegex(search), $options: 'i' } },
@@ -197,7 +200,7 @@ router.put('/:id', auth, csrfProtection, async (req, res) => {
   try {
     let transaction = await Transaction.findById(req.params.id);
     if (!transaction) return res.status(404).json({ msg: 'Transação não encontrada.' });
-    if (transaction.user.toString() !== req.user.id) return res.status(401).json({ msg: 'Não autorizado.' });
+    if (transaction.user.toString() !== req.user.id) return res.status(403).json({ msg: 'Acesso negado.' });
 
     const { payload, errors } = normalizeTransactionPayload(req.body, { partial: true });
     if (errors.length > 0) {
@@ -233,7 +236,7 @@ router.delete('/:id', auth, csrfProtection, async (req, res) => {
     try {
         let transaction = await Transaction.findById(req.params.id);
         if (!transaction) return res.status(404).json({ msg: 'Transação não encontrada.' });
-        if (transaction.user.toString() !== req.user.id) return res.status(401).json({ msg: 'Não autorizado.' });
+        if (transaction.user.toString() !== req.user.id) return res.status(403).json({ msg: 'Acesso negado.' });
         
         await Transaction.findByIdAndDelete(req.params.id);
         res.json({ msg: 'Transação removida.' });

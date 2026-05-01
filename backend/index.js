@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const { requestLogger } = require('./middleware/logger');
 
 const app = express();
 
@@ -15,11 +16,13 @@ if (missingEnvVars.length > 0) {
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : []),
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://gerenciador-financeiro-frontend.vercel.app'
+  // Localhost origins are allowed only outside production
+  ...(process.env.NODE_ENV !== 'production' ? [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ] : []),
 ]
   .map((origin) => origin && origin.trim())
   .filter(Boolean);
@@ -51,6 +54,7 @@ app.use(cors({
   allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token'],
 }));
 app.use(express.json({ limit: '100kb' }));
+app.use(requestLogger);
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("Conectado ao MongoDB com sucesso!"))

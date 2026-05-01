@@ -67,7 +67,9 @@ function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input-shell"
-              placeholder="Crie uma senha segura"
+              placeholder="Mínimo 8 caracteres"
+              minLength={8}
+              maxLength={128}
               required
             />
           </div>

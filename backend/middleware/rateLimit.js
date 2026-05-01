@@ -1,6 +1,14 @@
 function createRateLimiter({ windowMs, maxRequests, message }) {
   const requests = new Map();
 
+  const cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of requests.entries()) {
+      if (entry.resetAt <= now) requests.delete(key);
+    }
+  }, windowMs);
+  if (cleanup.unref) cleanup.unref();
+
   return function rateLimiter(req, res, next) {
     const key = `${req.ip}:${req.baseUrl}${req.path}`;
     const now = Date.now();

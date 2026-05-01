@@ -42,6 +42,16 @@ export function AuthProvider({ children }) {
     refreshAuth();
   }, []);
 
+  useEffect(() => {
+    function handleSessionExpired() {
+      clearCsrfToken();
+      setUser(null);
+      setIsLoading(false);
+    }
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, []);
+
   const value = {
     isAuthenticated: Boolean(user),
     isLoading,

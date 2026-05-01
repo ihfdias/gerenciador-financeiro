@@ -6,6 +6,8 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import HistoryFiltersPanel from '../components/HistoryFiltersPanel';
 import PeriodNavigator from '../components/PeriodNavigator';
 import PeriodLoadingCard from '../components/PeriodLoadingCard';
+import InsightsPanel from '../components/InsightsPanel';
+import TrendChartCard from '../components/TrendChartCard';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -64,6 +66,16 @@ function DashboardPage() {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
+  const [financialIndicators, setFinancialIndicators] = useState(null);
+  const [forecast, setForecast] = useState(null);
+  const [balanceTrend, setBalanceTrend] = useState([]);
+  const [isInsightLoading, setIsInsightLoading] = useState(true);
+  const [isPrivacyMode, setIsPrivacyMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.sessionStorage.getItem('financeflow:privacy-mode') === '1';
+  });
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const { logout, user } = useAuth();
 
   useEffect(() => {
@@ -73,6 +85,12 @@ function DashboardPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('financeflow:privacy-mode', isPrivacyMode ? '1' : '0');
+    }
+  }, [isPrivacyMode]);
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
   const isRangeFilterReady = isRangeReady(startDate, endDate);
@@ -133,6 +151,27 @@ function DashboardPage() {
     setPreviousTransactions(previousResponse.data);
   };
 
+  const refreshInsights = async () => {
+    setIsInsightLoading(true);
+    try {
+      const [indicatorsResponse, forecastResponse, trendResponse] = await Promise.all([
+        api.get('/api/reports/financial-indicators'),
+        api.get('/api/reports/forecast'),
+        api.get('/api/reports/balance-trend?months=6'),
+      ]);
+      setFinancialIndicators(indicatorsResponse.data);
+      setForecast(forecastResponse.data);
+      setBalanceTrend(trendResponse.data?.timeline || []);
+    } catch (error) {
+      console.error('Erro ao carregar insights do dashboard:', error);
+      setFinancialIndicators(null);
+      setForecast(null);
+      setBalanceTrend([]);
+    } finally {
+      setIsInsightLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchTransactions = async () => {
       if (filterMode === 'range' && !isRangeFilterReady) {
@@ -188,13 +227,17 @@ function DashboardPage() {
     fetchTransactions();
   }, [debouncedSearchTerm, endDate, filterMode, historyCategoryFilter, historyPage, historyQueryString, historySortOrder, historyTypeFilter, isRangeFilterReady, isRangeFilterValid, logout, navigate, previousQueryString, selectedMonth, selectedYear, startDate]);
 
+  useEffect(() => {
+    refreshInsights();
+  }, []);
+
   const addTransaction = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       const newTransaction = { description, amount: Number(amount), type, category, date };
       await api.post('/api/transactions', newTransaction);
-      await refreshTransactions();
+      await Promise.all([refreshTransactions(), refreshInsights()]);
       setDescription('');
       setAmount('');
       setCategory(categories[0]);
@@ -218,7 +261,7 @@ function DashboardPage() {
     if (!transactionToDelete) return;
     try {
       await api.delete(`/api/transactions/${transactionToDelete}`);
-      await refreshTransactions();
+      await Promise.all([refreshTransactions(), refreshInsights()]);
       handleCloseDeleteModal();
     } catch (error) {
       console.error("Erro ao deletar transação:", error);
@@ -298,7 +341,7 @@ function DashboardPage() {
     try {
       await api.put(`/api/transactions/${editingTransaction._id}`, updatedData);
       handleCloseModal();
-      await refreshTransactions();
+      await Promise.all([refreshTransactions(), refreshInsights()]);
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
     }
@@ -380,6 +423,144 @@ function DashboardPage() {
   };
   const pageIncome = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'income' ? sum + transaction.amount : sum), 0);
   const pageExpense = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'expense' ? sum + Math.abs(transaction.amount) : sum), 0);
+  const formatSensitiveValue = (value, formatter = currencyFormatter) => (isPrivacyMode ? '••••' : formatter.format(value));
+  const displayIndicatorValue = (value, suffix = '') => {
+    if (isPrivacyMode) return '••••';
+    if (value === null || value === undefined) return '--';
+    return `${String(value).replace('.', ',')}${suffix}`;
+  };
+  const indicatorCards = [
+    {
+      label: 'Dólar (USD/BRL)',
+      value: financialIndicators?.dolar?.value,
+      format: (value) => displayIndicatorValue(Number(value).toFixed(4)),
+    },
+    {
+      label: 'Selic (%)',
+      value: financialIndicators?.selic?.value,
+      format: (value) => displayIndicatorValue(Number(value).toFixed(2), '%'),
+    },
+    {
+      label: 'IPCA (%)',
+      value: financialIndicators?.ipca?.value,
+      format: (value) => displayIndicatorValue(Number(value).toFixed(2), '%'),
+    },
+  ];
+
+  const exportColumns = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor (BRL)'];
+  const buildCsv = (rows) => {
+    const escapeValue = (input) => `"${String(input ?? '').replaceAll('"', '""')}"`;
+    const lines = [exportColumns.map(escapeValue).join(',')];
+    rows.forEach((row) => {
+      lines.push([
+        new Date(row.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+        row.description,
+        row.category,
+        row.type === 'income' ? 'Receita' : 'Despesa',
+        Number(row.amount).toFixed(2).replace('.', ','),
+      ].map(escapeValue).join(','));
+    });
+    return `${lines.join('\n')}\n`;
+  };
+
+  const exportTransactionsCsv = async () => {
+    setIsExportingCsv(true);
+    try {
+      const exportParams = new URLSearchParams(historyQueryString);
+      exportParams.delete('page');
+      exportParams.delete('limit');
+      const response = await api.get(`/api/transactions?${exportParams.toString()}`);
+      const rows = Array.isArray(response.data) ? response.data : [];
+      const chunkSize = 1200;
+      const chunks = [];
+
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        chunks.push(rows.slice(i, i + chunkSize));
+      }
+
+      const csvParts = [];
+      for (let i = 0; i < chunks.length; i += 1) {
+        const part = buildCsv(chunks[i]);
+        csvParts.push(i === 0 ? part : part.split('\n').slice(1).join('\n'));
+        // Cede o ciclo do event loop para manter a UI responsiva durante exportações grandes.
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
+
+      const blob = new Blob(csvParts, { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance-flow-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erro ao exportar CSV:', error);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
+  const exportTransactionsPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const exportParams = new URLSearchParams(historyQueryString);
+      exportParams.delete('page');
+      exportParams.delete('limit');
+      const response = await api.get(`/api/transactions?${exportParams.toString()}`);
+      const rows = Array.isArray(response.data) ? response.data : [];
+      const htmlRows = rows.map((row) => `
+        <tr>
+          <td>${new Date(row.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</td>
+          <td>${row.description}</td>
+          <td>${row.category}</td>
+          <td>${row.type === 'income' ? 'Receita' : 'Despesa'}</td>
+          <td style="text-align:right">${Number(row.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+        </tr>
+      `).join('');
+
+      const printWindow = window.open('', '_blank', 'width=1200,height=800');
+      if (!printWindow) {
+        throw new Error('Não foi possível abrir a janela de impressão.');
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Finance Flow - Exportação</title>
+            <style>
+              body { font-family: sans-serif; padding: 24px; color: #0f172a; }
+              h1 { margin-bottom: 6px; }
+              p { margin-top: 0; color: #475569; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; }
+              th { background: #e2e8f0; text-align: left; }
+            </style>
+          </head>
+          <body>
+            <h1>Finance Flow - Transações filtradas</h1>
+            <p>Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+            <table>
+              <thead>
+                <tr>
+                  ${exportColumns.map((column) => `<th>${column}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>${htmlRows}</tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <>
@@ -396,6 +577,13 @@ function DashboardPage() {
             <p className="mt-4 inline-flex rounded-full border border-sky-300/15 bg-sky-300/10 px-4 py-2 text-sm font-medium text-sky-100">
               Exibindo: {activePeriodLabel}
             </p>
+            <button
+              type="button"
+              onClick={() => setIsPrivacyMode((current) => !current)}
+              className="ml-3 inline-flex rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+            >
+              {isPrivacyMode ? 'Privacidade: ON' : 'Privacidade: OFF'}
+            </button>
 
             <PeriodNavigator
               filterMode={filterMode}
@@ -454,21 +642,21 @@ function DashboardPage() {
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <div>
                   <p className="text-sm text-slate-400">Receitas</p>
-                  <p className="mt-1 text-xl font-semibold text-emerald-300">{currencyFormatter.format(displayIncome)}</p>
+                  <p className="mt-1 text-xl font-semibold text-emerald-300">{formatSensitiveValue(displayIncome)}</p>
                 </div>
                 <div className="h-11 w-11 rounded-2xl bg-emerald-300/15" />
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <div>
                   <p className="text-sm text-slate-400">Despesas</p>
-                  <p className="mt-1 text-xl font-semibold text-rose-300">{currencyFormatter.format(Math.abs(displayExpense))}</p>
+                  <p className="mt-1 text-xl font-semibold text-rose-300">{formatSensitiveValue(Math.abs(displayExpense))}</p>
                 </div>
                 <div className="h-11 w-11 rounded-2xl bg-rose-300/15" />
               </div>
               <div className="rounded-[22px] bg-sky-300/12 p-4">
                 <p className="text-sm text-slate-300">Saldo</p>
                 <p className={`mt-2 text-3xl font-semibold ${displayBalance >= 0 ? 'text-sky-200' : 'text-rose-300'}`}>
-                  {currencyFormatter.format(displayBalance)}
+                  {formatSensitiveValue(displayBalance)}
                 </p>
               </div>
             </div>
@@ -501,15 +689,36 @@ function DashboardPage() {
                       {trend.label}
                     </span>
                   </div>
-                  <p className={`metric-value ${metric.accentClass}`}>{currencyFormatter.format(metric.currentValue)}</p>
+                  <p className={`metric-value ${metric.accentClass}`}>{formatSensitiveValue(metric.currentValue)}</p>
                   <p className="mt-3 text-sm text-slate-400">
-                    vs. {previousPeriodLabel}: <span className="font-medium text-slate-200">{currencyFormatter.format(metric.previousValue)}</span>
+                    vs. {previousPeriodLabel}: <span className="font-medium text-slate-200">{formatSensitiveValue(metric.previousValue)}</span>
                   </p>
-                  <p className={`mt-1 text-sm font-medium ${trend.toneClass}`}>{trend.value}</p>
+                  <p className={`mt-1 text-sm font-medium ${trend.toneClass}`}>{isPrivacyMode ? '••••' : trend.value}</p>
                 </div>
               );
             })()
           ))}
+        </section>
+
+        <section className="mt-6">
+          <InsightsPanel
+            indicatorCards={indicatorCards}
+            isInsightLoading={isInsightLoading}
+            forecast={forecast}
+            formatSensitiveValue={formatSensitiveValue}
+          />
+        </section>
+
+        <section className="mt-6">
+          <TrendChartCard
+            balanceTrend={balanceTrend}
+            isPrivacyMode={isPrivacyMode}
+            formatSensitiveValue={formatSensitiveValue}
+            isExportingCsv={isExportingCsv}
+            isExportingPdf={isExportingPdf}
+            onExportCsv={exportTransactionsCsv}
+            onExportPdf={exportTransactionsPdf}
+          />
         </section>
 
         <div className="mt-6 grid gap-6 2xl:grid-cols-[minmax(420px,0.92fr)_minmax(560px,1.08fr)]">
@@ -615,7 +824,7 @@ function DashboardPage() {
                         <span className="mt-1 block text-sm text-slate-400">{new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</span>
                       </div>
                       <div className="flex items-center justify-between gap-4 md:justify-end">
-                        <span className={`text-base font-bold md:text-lg ${t.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{currencyFormatter.format(t.amount)}</span>
+                        <span className={`text-base font-bold md:text-lg ${t.amount < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{formatSensitiveValue(t.amount)}</span>
                         <div className="flex items-center gap-2">
                           <button onClick={() => handleOpenEditModal(t)} className="rounded-2xl bg-white/6 p-2 text-slate-300 transition hover:bg-sky-300/10 hover:text-sky-200" aria-label="Editar">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L14.732 3.732z" /></svg>
