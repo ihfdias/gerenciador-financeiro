@@ -1,4 +1,3 @@
-const { getFinancialIndicators } = require('../services/indicatorsService');
 const reportsService = require('../services/reportsService');
 
 async function summaryByCategory(req, res) {
@@ -11,15 +10,6 @@ async function summaryByCategory(req, res) {
     return res.json(result.data);
   } catch (error) {
     return res.status(500).json({ msg: 'Erro no servidor.' });
-  }
-}
-
-async function financialIndicators(req, res) {
-  try {
-    const indicators = await getFinancialIndicators({ forceRefresh: req.query.refresh === '1' });
-    return res.json(indicators);
-  } catch (error) {
-    return res.status(502).json({ msg: 'Não foi possível obter os indicadores externos no momento.' });
   }
 }
 
@@ -43,7 +33,6 @@ async function balanceTrend(req, res) {
 
 module.exports = {
   balanceTrend,
-  financialIndicators,
   forecast,
   summaryByCategory,
 };

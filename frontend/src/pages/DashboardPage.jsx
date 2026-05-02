@@ -66,7 +66,6 @@ function DashboardPage() {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
-  const [financialIndicators, setFinancialIndicators] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [balanceTrend, setBalanceTrend] = useState([]);
   const [isInsightLoading, setIsInsightLoading] = useState(true);
@@ -154,17 +153,14 @@ function DashboardPage() {
   const refreshInsights = async () => {
     setIsInsightLoading(true);
     try {
-      const [indicatorsResponse, forecastResponse, trendResponse] = await Promise.all([
-        api.get('/api/reports/financial-indicators'),
+      const [forecastResponse, trendResponse] = await Promise.all([
         api.get('/api/reports/forecast'),
         api.get('/api/reports/balance-trend?months=6'),
       ]);
-      setFinancialIndicators(indicatorsResponse.data);
       setForecast(forecastResponse.data);
       setBalanceTrend(trendResponse.data?.timeline || []);
     } catch (error) {
       console.error('Erro ao carregar insights do dashboard:', error);
-      setFinancialIndicators(null);
       setForecast(null);
       setBalanceTrend([]);
     } finally {
@@ -424,29 +420,6 @@ function DashboardPage() {
   const pageIncome = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'income' ? sum + transaction.amount : sum), 0);
   const pageExpense = sortedTransactions.reduce((sum, transaction) => (transaction.type === 'expense' ? sum + Math.abs(transaction.amount) : sum), 0);
   const formatSensitiveValue = (value, formatter = currencyFormatter) => (isPrivacyMode ? '••••' : formatter.format(value));
-  const displayIndicatorValue = (value, suffix = '') => {
-    if (isPrivacyMode) return '••••';
-    if (value === null || value === undefined) return '--';
-    return `${String(value).replace('.', ',')}${suffix}`;
-  };
-  const indicatorCards = [
-    {
-      label: 'Dólar (USD/BRL)',
-      value: financialIndicators?.dolar?.value,
-      format: (value) => displayIndicatorValue(Number(value).toFixed(4)),
-    },
-    {
-      label: 'Selic (%)',
-      value: financialIndicators?.selic?.value,
-      format: (value) => displayIndicatorValue(Number(value).toFixed(2), '%'),
-    },
-    {
-      label: 'IPCA (%)',
-      value: financialIndicators?.ipca?.value,
-      format: (value) => displayIndicatorValue(Number(value).toFixed(2), '%'),
-    },
-  ];
-
   const exportColumns = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor (BRL)'];
   const buildCsv = (rows) => {
     const escapeValue = (input) => `"${String(input ?? '').replaceAll('"', '""')}"`;
@@ -702,7 +675,6 @@ function DashboardPage() {
 
         <section className="mt-6">
           <InsightsPanel
-            indicatorCards={indicatorCards}
             isInsightLoading={isInsightLoading}
             forecast={forecast}
             formatSensitiveValue={formatSensitiveValue}
