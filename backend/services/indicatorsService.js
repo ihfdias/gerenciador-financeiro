@@ -11,7 +11,9 @@ function safeNumber(value) {
 }
 
 async function fetchDolarRate() {
-  const response = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+  const response = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL', {
+    signal: AbortSignal.timeout(8000),
+  });
   if (!response.ok) {
     throw new Error('Falha ao consultar cotacao do dolar.');
   }
@@ -27,7 +29,9 @@ async function fetchDolarRate() {
 }
 
 async function fetchBcbSerie(codigoSerie) {
-  const response = await fetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoSerie}/dados/ultimos/1?formato=json`);
+  const response = await fetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoSerie}/dados/ultimos/1?formato=json`, {
+    signal: AbortSignal.timeout(8000),
+  });
   if (!response.ok) {
     throw new Error(`Falha ao consultar serie ${codigoSerie}.`);
   }
